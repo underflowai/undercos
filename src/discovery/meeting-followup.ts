@@ -822,7 +822,15 @@ Return JSON with "subject" and "body" fields.`;
     const text = result.text || '';
     
     // Try to parse JSON response for subject + body
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    // First, strip markdown code fences if present
+    let cleanText = text;
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      cleanText = codeBlockMatch[1].trim();
+    }
+    
+    // Now try to extract JSON object
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0]);
@@ -834,8 +842,9 @@ Return JSON with "subject" and "body" fields.`;
             body: parsed.body,
           };
         }
-      } catch {
+      } catch (e) {
         // JSON parse failed, fall through to use raw text
+        console.warn('[MeetingFollowup] JSON parse failed:', e);
       }
     }
     
