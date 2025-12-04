@@ -16,6 +16,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import type { MessageCreateParamsNonStreaming } from '@anthropic-ai/sdk/resources/messages';
 import type { ModelConfig } from '../config/models.js';
 
 // =============================================================================
@@ -88,19 +89,17 @@ export class ClaudeClient {
       // Build request parameters
       // Note: Claude Opus 4.5 uses effort parameter for extended thinking
       // Temperature must be 1 when using extended thinking
-      const params: Record<string, unknown> = {
+      const params: MessageCreateParamsNonStreaming = {
         model,
         max_tokens: maxTokens,
         temperature: 1, // Required for extended thinking
         system: systemPrompt,
         messages: [
-          { role: 'user', content: userMessage }
+          { role: 'user' as const, content: userMessage }
         ],
-        // Extended thinking with effort level
-        effort,
       };
 
-      const response = await this.client.messages.create(params as Anthropic.MessageCreateParams);
+      const response = await this.client.messages.create(params);
 
       // Extract text from response
       let text = '';
@@ -109,8 +108,9 @@ export class ClaudeClient {
       for (const block of response.content) {
         if (block.type === 'text') {
           text += block.text;
-        } else if (block.type === 'thinking') {
-          thinkingText += (block as unknown as { thinking: string }).thinking;
+        } else if ((block as { type: string }).type === 'thinking') {
+          // Extended thinking blocks (when using thinking models)
+          thinkingText += ((block as unknown) as { thinking: string }).thinking;
         }
       }
 
@@ -150,19 +150,18 @@ export class ClaudeClient {
     console.log(`[Claude] Chat with ${messages.length} messages (effort: ${effort})`);
 
     try {
-      const params: Record<string, unknown> = {
+      const params: MessageCreateParamsNonStreaming = {
         model,
         max_tokens: maxTokens,
         temperature: 1, // Required for extended thinking
         system: systemPrompt,
         messages: messages.map(m => ({
-          role: m.role,
+          role: m.role as 'user' | 'assistant',
           content: m.content,
         })),
-        effort,
       };
 
-      const response = await this.client.messages.create(params as Anthropic.MessageCreateParams);
+      const response = await this.client.messages.create(params);
 
       let text = '';
       for (const block of response.content) {
