@@ -1178,12 +1178,30 @@ export async function surfaceMeetingFollowUp(
     });
   }
 
+  // Agent research/context (if gathered)
+  if (draft.contextGathered) {
+    blocks.push({
+      type: 'divider',
+    });
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*🔍 Agent Research:*\n${draft.contextGathered.slice(0, 2500)}${draft.contextGathered.length > 2500 ? '...' : ''}`,
+      },
+    });
+  }
+
+  blocks.push({
+    type: 'divider',
+  });
+
   // Draft email preview
   blocks.push({
     type: 'section',
     text: {
       type: 'mrkdwn',
-      text: `*Draft Email:*\n>${draft.body.split('\n').slice(0, 5).join('\n>')}${draft.body.split('\n').length > 5 ? '\n>...' : ''}`,
+      text: `*📧 Draft Email:*\n*Subject:* ${draft.subject}\n\n>${draft.body.split('\n').join('\n>')}`,
     },
   });
 
