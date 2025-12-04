@@ -29,6 +29,26 @@ export const emailSchemas = {
     emailId: z.string().describe('The email ID to fetch'),
   }),
 
+  // New: Search inbox by keyword/sender
+  searchInbox: z.object({
+    query: z.string().optional().describe('Search query (searches subject and body)'),
+    sender: z.string().optional().describe('Filter by sender email or name (e.g. "docusign" or "john@company.com")'),
+    limit: z.number().min(1).max(30).default(10).describe('Max emails to return'),
+  }),
+
+  // New: Search sent emails
+  searchSentEmails: z.object({
+    recipient: z.string().optional().describe('Filter by recipient email'),
+    query: z.string().optional().describe('Search query'),
+    limit: z.number().min(1).max(30).default(10).describe('Max emails to return'),
+  }),
+
+  // New: Get full email history with a contact
+  getEmailHistoryWithContact: z.object({
+    contactEmail: z.string().email().describe('Email address of the contact'),
+    limit: z.number().min(1).max(30).default(15).describe('Max emails to return'),
+  }),
+
   draftFollowupEmail: z.object({
     recipient: z.string().email().describe('Email address of the recipient'),
     recipientName: z.string().describe('Name of the recipient'),
@@ -362,6 +382,170 @@ Underflow</p>
       return {
         success: false,
         error: `Failed to create draft: ${error instanceof Error ? error.message : 'Unknown'}`,
+      };
+    }
+  },
+
+  /**
+   * Search inbox by keyword, sender, etc.
+   * This is a flexible search tool the agent can use to find relevant context.
+   */
+  async searchInbox(args: z.infer<typeof emailSchemas.searchInbox>): Promise<ToolResult> {
+    const client = getUnipileClient();
+    const accountId = await getActiveEmailAccountId();
+
+    if (!client || !accountId) {
+      return { success: false, error: 'Email account not configured' };
+    }
+
+    try {
+      let emails: UnipileEmail[] = [];
+
+      if (args.sender) {
+        // Search by sender
+        emails = await client.searchEmailsBySender({
+          account_id: accountId,
+          sender: args.sender,
+          limit: args.limit,
+        });
+      } else {
+        // Get recent inbox emails
+        emails = await client.getEmails({
+          account_id: accountId,
+          limit: args.limit,
+          folder: 'INBOX',
+        });
+      }
+
+      // Filter by query if provided
+      if (args.query) {
+        const query = args.query.toLowerCase();
+        emails = emails.filter(e => 
+          (e.subject || '').toLowerCase().includes(query) ||
+          (e.body_plain || '').toLowerCase().includes(query)
+        );
+      }
+
+      return {
+        success: true,
+        data: {
+          emails: emails.map(e => ({
+            id: e.id,
+            subject: e.subject,
+            from: e.from,
+            to: e.to,
+            date: e.date,
+            preview: (e.body_plain || '').slice(0, 500),
+            isRead: e.is_read,
+          })),
+          count: emails.length,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to search inbox: ${error instanceof Error ? error.message : 'Unknown'}`,
+      };
+    }
+  },
+
+  /**
+   * Search sent emails
+   */
+  async searchSentEmails(args: z.infer<typeof emailSchemas.searchSentEmails>): Promise<ToolResult> {
+    const client = getUnipileClient();
+    const accountId = await getActiveEmailAccountId();
+
+    if (!client || !accountId) {
+      return { success: false, error: 'Email account not configured' };
+    }
+
+    try {
+      let emails: UnipileEmail[] = [];
+
+      if (args.recipient) {
+        emails = await client.searchEmailsToRecipient({
+          account_id: accountId,
+          recipient: args.recipient,
+          folder: 'SENT',
+          limit: args.limit,
+        });
+      } else {
+        emails = await client.getEmails({
+          account_id: accountId,
+          limit: args.limit,
+          folder: 'SENT',
+        });
+      }
+
+      // Filter by query if provided
+      if (args.query) {
+        const query = args.query.toLowerCase();
+        emails = emails.filter(e => 
+          (e.subject || '').toLowerCase().includes(query) ||
+          (e.body_plain || '').toLowerCase().includes(query)
+        );
+      }
+
+      return {
+        success: true,
+        data: {
+          emails: emails.map(e => ({
+            id: e.id,
+            subject: e.subject,
+            to: e.to,
+            date: e.date,
+            preview: (e.body_plain || '').slice(0, 500),
+          })),
+          count: emails.length,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to search sent emails: ${error instanceof Error ? error.message : 'Unknown'}`,
+      };
+    }
+  },
+
+  /**
+   * Get full email history with a specific contact (both sent and received)
+   */
+  async getEmailHistoryWithContact(args: z.infer<typeof emailSchemas.getEmailHistoryWithContact>): Promise<ToolResult> {
+    const client = getUnipileClient();
+    const accountId = await getActiveEmailAccountId();
+
+    if (!client || !accountId) {
+      return { success: false, error: 'Email account not configured' };
+    }
+
+    try {
+      const emails = await client.getEmailHistoryWithContact({
+        account_id: accountId,
+        contactEmail: args.contactEmail,
+        limit: args.limit,
+      });
+
+      return {
+        success: true,
+        data: {
+          emails: emails.map(e => ({
+            id: e.id,
+            subject: e.subject,
+            from: e.from,
+            to: e.to,
+            date: e.date,
+            direction: (e.from?.email || '').includes('underflow') ? 'sent' : 'received',
+            body: e.body_plain || '',
+          })),
+          count: emails.length,
+          contactEmail: args.contactEmail,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to get email history: ${error instanceof Error ? error.message : 'Unknown'}`,
       };
     }
   },

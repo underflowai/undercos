@@ -235,9 +235,15 @@ export class ResponsesAPIClient {
     if (data.output && Array.isArray(data.output)) {
       for (const item of data.output) {
         if (item.type === 'function_call') {
+          // Debug: log the raw function call item to understand its structure
+          console.log(`[ResponsesAPI] Function call item:`, JSON.stringify(item).slice(0, 300));
+          
+          // The call_id field contains the ID we need to reference when submitting outputs
+          const callId = (item.call_id as string) || (item.id as string);
+          
           const funcCall: FunctionToolCall = {
             type: 'function_call',
-            id: item.id as string,
+            id: callId,
             name: item.name as string,
             arguments: typeof item.arguments === 'string' 
               ? JSON.parse(item.arguments) 

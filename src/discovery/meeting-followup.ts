@@ -32,7 +32,7 @@ import {
   markMeetingSurfaced,
   type CreateLeadParams,
 } from '../db/sales-leads.js';
-import { MEETING_FOLLOWUP_PROMPT, MEETING_CLASSIFICATION_PROMPT } from './prompts.js';
+import { MEETING_FOLLOWUP_PROMPT, MEETING_CLASSIFICATION_PROMPT, AGENT_FOLLOWUP_PROMPT } from './prompts.js';
 import { getContentGenerationConfig } from '../config/models.js';
 import { generateContent } from '../llm/content-generator.js';
 import type { DiscoveryConfig } from './config.js';
@@ -877,6 +877,141 @@ Ola`,
 }
 
 // =============================================================================
+// AGENT-DRIVEN FOLLOW-UP GENERATION
+// =============================================================================
+
+import { ResponsesRouter } from '../agent/responses-router.js';
+
+/**
+ * Generate a follow-up email using an agent that reasons and searches for context.
+ * 
+ * Instead of hardcoding what context to gather, the agent:
+ * 1. Reads the meeting notes
+ * 2. Decides what additional context it needs
+ * 3. Uses tools to search inbox, check DocuSign, web search, etc.
+ * 4. Generates the follow-up based on all gathered context
+ */
+export async function generateFollowUpWithAgent(
+  llm: ResponsesAPIClient,
+  meeting: EndedMeeting,
+  notes: MeetingNotes
+): Promise<{ to: string[]; subject: string; body: string; contextGathered?: string }> {
+  // Get primary recipient
+  const primaryRecipient = meeting.attendees.find(a => a.isExternal);
+  if (!primaryRecipient) {
+    throw new Error('No external attendees found');
+  }
+
+  // Get all external recipients
+  const toAddresses = meeting.attendees
+    .filter(a => a.isExternal)
+    .map(a => a.email);
+
+  console.log(`[MeetingFollowup] Using agent-driven approach for "${meeting.title}"`);
+  console.log(`[MeetingFollowup] Primary recipient: ${primaryRecipient.name} (${primaryRecipient.email})`);
+
+  // Create the router with tools
+  const router = new ResponsesRouter(llm);
+
+  // Build the message for the agent
+  const agentMessage = `I just had a meeting that I need to follow up on. Please help me draft a follow-up email.
+
+MEETING DETAILS:
+- Title: ${meeting.title}
+- Date: ${meeting.endTime.toLocaleDateString()}
+- Time: ${meeting.startTime.toLocaleTimeString()} - ${meeting.endTime.toLocaleTimeString()}
+- Primary recipient: ${primaryRecipient.name || 'Unknown'} (${primaryRecipient.email})
+- All attendees: ${meeting.attendees.map(a => `${a.name || 'Unknown'} (${a.email})`).join(', ')}
+
+MEETING NOTES FROM DAY.AI:
+${notes.body}
+
+KEY POINTS EXTRACTED:
+${notes.keyPoints.map(p => `- ${p}`).join('\n') || 'None identified'}
+
+ACTION ITEMS:
+${notes.actionItems.map(a => `- ${a}`).join('\n') || 'None identified'}
+
+NEXT STEPS:
+${notes.nextSteps.map(n => `- ${n}`).join('\n') || 'None identified'}
+
+---
+
+Please:
+1. Search for any DocuSign/NDA emails related to this contact (search inbox for "docusign" and their name/company)
+2. Check our email history with ${primaryRecipient.email} to see what we've already sent
+3. Do a web search for any recent news about their company
+4. Based on ALL the context, draft a follow-up email
+
+Remember: Use GIVE/GET framework. Be a confident founder. Keep it to 3-4 sentences.`;
+
+  try {
+    // Process with agent (this will use tools to gather context)
+    const result = await router.process(agentMessage, {
+      threadTs: `meeting_${meeting.id}`,
+      channelId: 'agent',
+      userId: 'system',
+    });
+
+    console.log(`[MeetingFollowup] Agent used tools: ${result.toolsCalled.join(', ') || 'none'}`);
+    console.log(`[MeetingFollowup] Web search used: ${result.webSearchUsed}`);
+
+    // Parse the agent's response to extract the email
+    const response = result.response;
+    
+    // Try to extract JSON email from response
+    const jsonMatch = response.match(/\{[\s\S]*?"subject"[\s\S]*?"body"[\s\S]*?\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.subject && parsed.body) {
+          // Extract context gathered section if present
+          const contextMatch = response.match(/CONTEXT GATHERED:[\s\S]*?(?=FOLLOW-UP EMAIL:|$)/i);
+          
+          return {
+            to: parsed.to || toAddresses,
+            subject: parsed.subject,
+            body: parsed.body,
+            contextGathered: contextMatch ? contextMatch[0].trim() : undefined,
+          };
+        }
+      } catch (parseError) {
+        console.warn('[MeetingFollowup] Failed to parse agent JSON response:', parseError);
+      }
+    }
+
+    // If no valid JSON, try to extract subject and body from text
+    const subjectMatch = response.match(/subject[:\s]*["']?([^"'\n]+)["']?/i);
+    const bodyMatch = response.match(/body[:\s]*["']?([\s\S]+?)["']?\s*(?:$|\})/i);
+
+    if (subjectMatch && bodyMatch) {
+      return {
+        to: toAddresses,
+        subject: subjectMatch[1].trim(),
+        body: bodyMatch[1].trim(),
+        contextGathered: result.response.includes('CONTEXT GATHERED') 
+          ? result.response.split('CONTEXT GATHERED')[1].split('FOLLOW-UP EMAIL')[0].trim()
+          : undefined,
+      };
+    }
+
+    // Fallback: use the whole response as the body
+    console.log('[MeetingFollowup] Agent response did not contain structured email, using fallback');
+    return {
+      to: toAddresses,
+      subject: `Underflow - ${meeting.title}`,
+      body: response,
+    };
+
+  } catch (error) {
+    console.error('[MeetingFollowup] Agent-driven generation failed:', error);
+    // Fall back to the original method
+    console.log('[MeetingFollowup] Falling back to direct generation');
+    return generateFollowUpDraft(llm, meeting, notes);
+  }
+}
+
+// =============================================================================
 // SLACK SURFACING
 // =============================================================================
 
@@ -926,11 +1061,14 @@ export async function surfaceMeetingFollowUp(
     return;
   }
 
-  // Get email history for better context in draft
-  const emailHistory = await getEmailHistoryContext(primaryRecipient.email);
-
-  // Generate the follow-up draft with email history context
-  const draft = await generateFollowUpDraft(llm, meeting, notes, emailHistory);
+  // Generate the follow-up draft using agent-driven approach
+  // The agent will search for context (DocuSign, email history, web) on its own
+  console.log(`[MeetingFollowup] Generating draft with agent-driven approach...`);
+  const draft = await generateFollowUpWithAgent(llm, meeting, notes);
+  
+  if (draft.contextGathered) {
+    console.log(`[MeetingFollowup] Agent gathered context:\n${draft.contextGathered.slice(0, 200)}...`);
+  }
 
   // Queue LinkedIn connections for external attendees
   for (const attendee of meeting.attendees.filter(a => a.isExternal)) {

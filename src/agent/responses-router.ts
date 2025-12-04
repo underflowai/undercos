@@ -168,6 +168,24 @@ function buildFunctionTools(): FunctionTool[] {
     },
     {
       type: 'function',
+      name: 'search_inbox',
+      description: `Search inbox emails by keyword, sender, etc ${mode}. Use this to find relevant context like DocuSign status, NDAs, contracts, or any emails related to a contact.`,
+      parameters: zodToJsonSchema(emailSchemas.searchInbox),
+    },
+    {
+      type: 'function',
+      name: 'search_sent_emails',
+      description: `Search emails you sent ${mode}. Use to check what you've already sent to someone or find your own commitments.`,
+      parameters: zodToJsonSchema(emailSchemas.searchSentEmails),
+    },
+    {
+      type: 'function',
+      name: 'get_email_history_with_contact',
+      description: `Get full email history (sent and received) with a specific contact ${mode}. Returns emails sorted by date with full bodies.`,
+      parameters: zodToJsonSchema(emailSchemas.getEmailHistoryWithContact),
+    },
+    {
+      type: 'function',
       name: 'draft_followup_email',
       description: `Draft a follow-up email based on meeting context ${mode}. Requires user approval before sending.`,
       parameters: zodToJsonSchema(emailSchemas.draftFollowupEmail),
@@ -215,32 +233,25 @@ export class ResponsesRouter {
 
     let iterations = 0;
     const maxIterations = 10;
-    let previousResponseId: string | undefined;
+    let currentResult = await this.client.createResponse(input, this.tools);
 
     while (iterations < maxIterations) {
       iterations++;
       console.log(`[ResponsesRouter] Iteration ${iterations}`);
 
-      // Create response
-      const result = previousResponseId
-        ? await this.client.submitToolOutputs(previousResponseId, [], this.tools)
-        : await this.client.createResponse(input, this.tools);
-
-      previousResponseId = result.id;
-
       // Track web search usage
-      if (result.webSearchCalls.length > 0) {
+      if (currentResult.webSearchCalls.length > 0) {
         webSearchUsed = true;
-        console.log(`[ResponsesRouter] Web search was used (${result.webSearchCalls.length} calls)`);
+        console.log(`[ResponsesRouter] Web search was used (${currentResult.webSearchCalls.length} calls)`);
       }
 
       // Collect citations
-      allCitations.push(...result.citations);
+      allCitations.push(...currentResult.citations);
 
       // If no function calls, we have the final response
-      if (result.functionCalls.length === 0) {
+      if (currentResult.functionCalls.length === 0) {
         return {
-          response: result.outputText || "I couldn't generate a response.",
+          response: currentResult.outputText || "I couldn't generate a response.",
           pendingActions,
           toolsCalled,
           webSearchUsed,
@@ -251,12 +262,14 @@ export class ResponsesRouter {
       // Process function calls
       const toolOutputs: Array<{ callId: string; output: string }> = [];
 
-      for (const funcCall of result.functionCalls) {
+      console.log(`[ResponsesRouter] Processing ${currentResult.functionCalls.length} function calls`);
+
+      for (const funcCall of currentResult.functionCalls) {
         const toolName = funcCall.name;
         const args = funcCall.arguments;
         toolsCalled.push(toolName);
 
-        console.log(`[ResponsesRouter] Tool call: ${toolName}`, args);
+        console.log(`[ResponsesRouter] Tool call: ${toolName} (id: ${funcCall.id})`, args);
 
         // Execute the tool
         const toolResult = await this.executeTool(toolName, args);
@@ -277,28 +290,49 @@ export class ResponsesRouter {
         }
 
         // Collect tool output for submission
+        const output = JSON.stringify(toolResult.data || { success: toolResult.success, status: toolResult.requiresApproval ? 'pending_approval' : 'done' });
+        console.log(`[ResponsesRouter] Output for ${funcCall.id}: ${output.slice(0, 200)}...`);
+        
         toolOutputs.push({
           callId: funcCall.id,
-          output: JSON.stringify(toolResult.data || { status: toolResult.requiresApproval ? 'pending_approval' : 'done' }),
+          output,
         });
       }
 
-      // Submit tool outputs and continue
-      const nextResult = await this.client.submitToolOutputs(
-        previousResponseId,
-        toolOutputs,
-        this.tools
-      );
-      
-      previousResponseId = nextResult.id;
-
-      // Collect any additional citations
-      allCitations.push(...nextResult.citations);
-
-      // If we have pending actions or no more function calls, return
-      if (pendingActions.length > 0 || nextResult.functionCalls.length === 0) {
+      // If we have pending actions that need approval, return early
+      if (pendingActions.length > 0) {
         return {
-          response: nextResult.outputText || '',
+          response: currentResult.outputText || 'Actions require approval.',
+          pendingActions,
+          toolsCalled,
+          webSearchUsed,
+          citations: allCitations,
+        };
+      }
+
+      // Log what we're submitting
+      console.log(`[ResponsesRouter] Submitting ${toolOutputs.length} tool outputs for response ${currentResult.id}`);
+
+      // Submit tool outputs and continue
+      try {
+        currentResult = await this.client.submitToolOutputs(
+          currentResult.id,
+          toolOutputs,
+          this.tools
+        );
+        console.log(`[ResponsesRouter] Got response, ${currentResult.functionCalls.length} more function calls`);
+      } catch (error) {
+        // If tool output submission fails, log and return what we have
+        console.error(`[ResponsesRouter] Failed to submit tool outputs:`, error);
+        console.error(`[ResponsesRouter] Tool outputs were:`, toolOutputs.map(o => ({ callId: o.callId, outputLength: o.output.length })));
+        
+        // Try to return a useful response with the data we gathered
+        const gatheredData = toolOutputs
+          .map(o => { try { return JSON.parse(o.output); } catch { return null; } })
+          .filter(d => d && d.data);
+        
+        return {
+          response: `I gathered context from ${toolsCalled.length} searches. Error processing final response.`,
           pendingActions,
           toolsCalled,
           webSearchUsed,
@@ -347,6 +381,12 @@ export class ResponsesRouter {
         return emailHandlers.getMeetingNotes(emailSchemas.getMeetingNotes.parse(args));
       case 'get_email':
         return emailHandlers.getEmail(emailSchemas.getEmail.parse(args));
+      case 'search_inbox':
+        return emailHandlers.searchInbox(emailSchemas.searchInbox.parse(args));
+      case 'search_sent_emails':
+        return emailHandlers.searchSentEmails(emailSchemas.searchSentEmails.parse(args));
+      case 'get_email_history_with_contact':
+        return emailHandlers.getEmailHistoryWithContact(emailSchemas.getEmailHistoryWithContact.parse(args));
       case 'draft_followup_email':
         return emailHandlers.draftFollowupEmail(emailSchemas.draftFollowupEmail.parse(args));
       case 'list_email_folders':
