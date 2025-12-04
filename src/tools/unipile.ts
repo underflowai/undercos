@@ -461,16 +461,20 @@ export class UnipileClient {
     cc?: string[];
     bcc?: string[];
   }): Promise<UnipileEmailResponse> {
+    // Format recipients as objects with identifier field
+    const formatRecipients = (emails: string[]) => 
+      emails.map(email => ({ identifier: email }));
+
     return this.request<UnipileEmailResponse>('/api/v1/drafts', {
       method: 'POST',
       body: JSON.stringify({
         account_id: params.account_id,
-        to: params.to,
+        to: formatRecipients(params.to),
         subject: params.subject,
         body: params.body,
         body_type: 'text/html',
-        ...(params.cc && { cc: params.cc }),
-        ...(params.bcc && { bcc: params.bcc }),
+        ...(params.cc && { cc: formatRecipients(params.cc) }),
+        ...(params.bcc && { bcc: formatRecipients(params.bcc) }),
       }),
     });
   }
