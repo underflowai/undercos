@@ -306,18 +306,48 @@ export async function queueLinkedInConnectionForAttendee(
       return { found: true, alreadyConnected: true, queued: false };
     }
 
-    // Queue connection request with meeting context
+    // Generate a personalized connection note referencing the meeting
     const { LINKEDIN_MEETING_NOTE_PROMPT } = await import('./prompts.js');
-    // For now, just log - actual connection will be handled via the people discovery flow
-    console.log(`[MeetingFollowup] Found ${match.name} on LinkedIn, should queue connection request`);
+    const { generateContent } = await import('../llm/content-generator.js');
+    const { ResponsesAPIClient } = await import('../llm/responses.js');
+    const { env } = await import('../config/env.js');
     
-    // Store in database for later processing
-    const { createLead, getLead } = await import('../db/sales-leads.js');
+    console.log(`[MeetingFollowup] Found ${match.name} on LinkedIn, generating connection note...`);
     
-    // Update lead with LinkedIn info if exists
-    // This will be picked up by the LinkedIn integration
+    // Generate connection note
+    const notePrompt = `Meeting: ${meetingContext.title}
+Date: ${meetingContext.date.toLocaleDateString()}
+Person: ${match.name}
+Their headline: ${match.headline || 'N/A'}
+
+Generate a brief, personalized LinkedIn connection note (max 200 chars).`;
+
+    const llm = new ResponsesAPIClient(env.OPENAI_API_KEY, { enableWebSearch: false });
+    const noteResult = await generateContent({
+      systemPrompt: LINKEDIN_MEETING_NOTE_PROMPT,
+      userPrompt: notePrompt,
+      maxTokens: 100,
+      effort: 'low',
+    }, llm);
     
-    return { found: true, alreadyConnected: false, queued: true };
+    const connectionNote = noteResult.text?.slice(0, 200) || `Great connecting at ${meetingContext.title}!`;
+    
+    // Send the connection request
+    const { executeLinkedInAction } = await import('../tools/linkedin.js');
+    const result = await executeLinkedInAction('send_connection_request', {
+      profileId: match.provider_id,
+      profileUrl: match.profile_url,
+      profileName: match.name,
+      note: connectionNote,
+    }, connectionNote);
+    
+    if (result.success) {
+      console.log(`[MeetingFollowup] Sent LinkedIn connection request to ${match.name}`);
+      return { found: true, alreadyConnected: false, queued: true };
+    } else {
+      console.log(`[MeetingFollowup] LinkedIn connection request failed: ${result.error}`);
+      return { found: true, alreadyConnected: false, queued: false };
+    }
   } catch (error) {
     console.error('[MeetingFollowup] LinkedIn lookup failed:', error);
     return { found: false, alreadyConnected: false, queued: false };
