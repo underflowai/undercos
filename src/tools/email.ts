@@ -43,6 +43,12 @@ export const emailSchemas = {
     replyToEmailId: z.string().optional().describe('Email ID to reply to (for threading)'),
   }),
 
+  createDraft: z.object({
+    to: z.array(z.string().email()).describe('Recipients'),
+    subject: z.string().describe('Email subject'),
+    body: z.string().describe('Email body (HTML supported)'),
+  }),
+
   listFolders: z.object({}),
 };
 
@@ -313,6 +319,49 @@ Underflow</p>
       return {
         success: false,
         error: `Failed to send email: ${error instanceof Error ? error.message : 'Unknown'}`,
+      };
+    }
+  },
+
+  /**
+   * Create an email draft (instead of sending directly)
+   */
+  async createDraft(args: z.infer<typeof emailSchemas.createDraft>): Promise<ToolResult & { emailId?: string }> {
+    const client = getUnipileClient();
+    const accountId = await getActiveEmailAccountId();
+
+    if (!client || !accountId) {
+      return {
+        success: false,
+        error: 'Email account not configured',
+      };
+    }
+
+    try {
+      const result = await client.createEmailDraft({
+        account_id: accountId,
+        to: args.to,
+        subject: args.subject,
+        body: args.body,
+      });
+
+      if (result.success) {
+        return {
+          success: true,
+          data: { emailId: result.email_id },
+          message: 'Draft created in your inbox',
+          emailId: result.email_id,
+        };
+      } else {
+        return {
+          success: false,
+          error: result.error || 'Failed to create draft',
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to create draft: ${error instanceof Error ? error.message : 'Unknown'}`,
       };
     }
   },

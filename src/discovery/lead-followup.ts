@@ -470,7 +470,7 @@ export async function surfaceFollowUp(
   }> = [
     {
       type: 'button',
-      text: { type: 'plain_text', text: 'Send' },
+      text: { type: 'plain_text', text: 'Create Draft' },
       style: 'primary',
       action_id: 'lead_followup_send',
       value: JSON.stringify({

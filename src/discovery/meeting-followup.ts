@@ -991,7 +991,7 @@ export async function surfaceMeetingFollowUp(
     elements: [
       {
         type: 'button',
-        text: { type: 'plain_text', text: 'Send' },
+        text: { type: 'plain_text', text: 'Create Draft' },
         style: 'primary',
         action_id: 'meeting_followup_send',
         value: JSON.stringify({

@@ -495,7 +495,7 @@ export function registerDiscoveryHandlers(app: App): void {
   // MEETING FOLLOW-UP HANDLERS
   // ============================================
 
-  // Send meeting follow-up
+  // Create meeting follow-up draft (instead of sending directly)
   app.action<BlockAction<ButtonAction>>('meeting_followup_send', async ({ ack, body, client }) => {
     await ack();
 
@@ -503,46 +503,18 @@ export function registerDiscoveryHandlers(app: App): void {
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
 
-    const result = await emailHandlers.sendEmail({
+    // Create draft instead of sending
+    const result = await emailHandlers.createDraft({
       to: data.to,
       subject: data.subject,
       body: data.body.replace(/\n/g, '<br>'),
     });
 
     if (result.success) {
-      // Mark meeting as sent in surfaced_meetings table
-      const { createLead, recordEmailSent, markMeetingSent } = await import('../db/sales-leads.js');
+      // Mark meeting as surfaced but NOT sent (draft only)
+      const { markMeetingSent } = await import('../db/sales-leads.js');
       if (data.meetingId) {
         markMeetingSent(data.meetingId);
-      }
-      
-      // Create lead in database
-      const { createLeadFromMeeting } = await import('./meeting-followup.js');
-      
-      const leadParams = createLeadFromMeeting(
-        { id: data.meetingId, title: data.meetingTitle, startTime: new Date(), endTime: new Date(), attendees: [] },
-        { id: data.notesId, subject: '', body: '', receivedAt: new Date(), keyPoints: [], actionItems: [], nextSteps: [] },
-        data.recipientEmail,
-        data.recipientName
-      );
-      
-      const lead = createLead(leadParams);
-      if (result.threadId) {
-        recordEmailSent(lead.id, result.threadId, true);
-      }
-
-      // Add Sales Leads label
-      if (result.emailId) {
-        const { getUnipileClient, getActiveEmailAccountId } = await import('../tools/unipile.js');
-        const unipileClient = getUnipileClient();
-        const accountId = await getActiveEmailAccountId();
-        if (unipileClient && accountId) {
-          await unipileClient.modifyEmailLabels({
-            account_id: accountId,
-            email_id: result.emailId,
-            add_labels: ['Sales Leads'],
-          });
-        }
       }
     }
 
@@ -552,7 +524,7 @@ export function registerDiscoveryHandlers(app: App): void {
         channel: channelId,
         thread_ts: messageTs,
         text: result.success
-          ? `Follow-up sent to ${data.recipientName || data.to[0]}`
+          ? `✏️ Draft created for ${data.recipientName || data.to[0]} - check your Drafts folder`
           : `${result.error}`,
       });
     }
@@ -581,8 +553,8 @@ export function registerDiscoveryHandlers(app: App): void {
           channelId,
           messageTs,
         }),
-        title: { type: 'plain_text', text: 'Send Follow-up' },
-        submit: { type: 'plain_text', text: 'Send' },
+        title: { type: 'plain_text', text: 'Create Draft' },
+        submit: { type: 'plain_text', text: 'Create Draft' },
         close: { type: 'plain_text', text: 'Cancel' },
         blocks: [
           {
@@ -618,7 +590,7 @@ export function registerDiscoveryHandlers(app: App): void {
     });
   });
 
-  // Submit edited meeting follow-up
+  // Submit edited meeting follow-up (creates draft)
   app.view('meeting_followup_submit', async ({ ack, body, view, client }) => {
     await ack();
 
@@ -626,32 +598,18 @@ export function registerDiscoveryHandlers(app: App): void {
     const subject = view.state.values.subject_block?.subject_input?.value || '';
     const emailBody = view.state.values.body_block?.body_input?.value || '';
 
-    const result = await emailHandlers.sendEmail({
+    // Create draft instead of sending
+    const result = await emailHandlers.createDraft({
       to: meta.to || [meta.recipientEmail],
       subject,
       body: emailBody.replace(/\n/g, '<br>'),
     });
 
     if (result.success) {
-      // Mark meeting as sent in surfaced_meetings table
-      const { createLead, recordEmailSent, markMeetingSent } = await import('../db/sales-leads.js');
+      // Mark meeting as surfaced
+      const { markMeetingSent } = await import('../db/sales-leads.js');
       if (meta.meetingId) {
         markMeetingSent(meta.meetingId);
-      }
-      
-      // Create lead in database
-      const { createLeadFromMeeting } = await import('./meeting-followup.js');
-      
-      const leadParams = createLeadFromMeeting(
-        { id: meta.meetingId, title: meta.meetingTitle, startTime: new Date(), endTime: new Date(), attendees: [] },
-        { id: meta.notesId, subject: '', body: '', receivedAt: new Date(), keyPoints: [], actionItems: [], nextSteps: [] },
-        meta.recipientEmail || meta.to?.[0],
-        meta.recipientName
-      );
-      
-      const lead = createLead(leadParams);
-      if (result.threadId) {
-        recordEmailSent(lead.id, result.threadId, true);
       }
     }
 
@@ -661,7 +619,7 @@ export function registerDiscoveryHandlers(app: App): void {
         channel: meta.channelId,
         thread_ts: meta.messageTs,
         text: result.success
-          ? `Follow-up sent to ${meta.recipientName || meta.recipientEmail}`
+          ? `✏️ Draft created for ${meta.recipientName || meta.recipientEmail} - check your Drafts folder`
           : `${result.error}`,
       });
     }
@@ -694,7 +652,7 @@ export function registerDiscoveryHandlers(app: App): void {
   // LEAD FOLLOW-UP CADENCE HANDLERS
   // ============================================
 
-  // Send lead follow-up
+  // Create lead follow-up draft (instead of sending directly)
   app.action<BlockAction<ButtonAction>>('lead_followup_send', async ({ ack, body, client }) => {
     await ack();
 
@@ -702,7 +660,7 @@ export function registerDiscoveryHandlers(app: App): void {
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
 
-    const { getLead, recordEmailSent } = await import('../db/sales-leads.js');
+    const { getLead } = await import('../db/sales-leads.js');
     const lead = getLead(data.leadId);
 
     if (!lead) {
@@ -716,23 +674,19 @@ export function registerDiscoveryHandlers(app: App): void {
       return;
     }
 
-    const result = await emailHandlers.sendEmail({
+    // Create draft instead of sending
+    const result = await emailHandlers.createDraft({
       to: [lead.email],
       subject: data.subject,
       body: data.body.replace(/\n/g, '<br>'),
-      replyToEmailId: lead.email_thread_id,
     });
-
-    if (result.success && result.threadId) {
-      recordEmailSent(lead.id, result.threadId);
-    }
 
     if (messageTs && channelId) {
       await client.chat.postMessage({
         channel: channelId,
         thread_ts: messageTs,
         text: result.success
-          ? `Follow-up ${data.stage} sent to ${lead.name || lead.email}`
+          ? `✏️ Draft created for ${lead.name || lead.email} - check your Drafts folder`
           : `${result.error}`,
       });
     }
@@ -760,8 +714,8 @@ export function registerDiscoveryHandlers(app: App): void {
           channelId,
           messageTs,
         }),
-        title: { type: 'plain_text', text: 'Send Follow-up' },
-        submit: { type: 'plain_text', text: 'Send' },
+        title: { type: 'plain_text', text: 'Create Draft' },
+        submit: { type: 'plain_text', text: 'Create Draft' },
         close: { type: 'plain_text', text: 'Cancel' },
         blocks: [
           {
@@ -797,7 +751,7 @@ export function registerDiscoveryHandlers(app: App): void {
     });
   });
 
-  // Submit edited lead follow-up
+  // Submit edited lead follow-up (creates draft)
   app.view('lead_followup_submit', async ({ ack, body, view, client }) => {
     await ack();
 
@@ -805,7 +759,7 @@ export function registerDiscoveryHandlers(app: App): void {
     const subject = view.state.values.subject_block?.subject_input?.value || '';
     const emailBody = view.state.values.body_block?.body_input?.value || '';
 
-    const { getLead, recordEmailSent } = await import('../db/sales-leads.js');
+    const { getLead } = await import('../db/sales-leads.js');
     const lead = getLead(meta.leadId);
 
     if (!lead) {
@@ -819,23 +773,19 @@ export function registerDiscoveryHandlers(app: App): void {
       return;
     }
 
-    const result = await emailHandlers.sendEmail({
+    // Create draft instead of sending
+    const result = await emailHandlers.createDraft({
       to: [lead.email],
       subject,
       body: emailBody.replace(/\n/g, '<br>'),
-      replyToEmailId: lead.email_thread_id,
     });
-
-    if (result.success && result.threadId) {
-      recordEmailSent(lead.id, result.threadId);
-    }
 
     if (meta.messageTs && meta.channelId) {
       await client.chat.postMessage({
         channel: meta.channelId,
         thread_ts: meta.messageTs,
         text: result.success
-          ? `Follow-up sent to ${lead.name || lead.email}`
+          ? `✏️ Draft created for ${lead.name || lead.email} - check your Drafts folder`
           : `${result.error}`,
       });
     }
