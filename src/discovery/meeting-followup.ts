@@ -998,10 +998,11 @@ Remember: Use GIVE/GET framework. Be a confident founder. Keep it to 3-4 sentenc
           // Extract context gathered section if present
           const contextMatch = response.match(/CONTEXT GATHERED:[\s\S]*?(?=FOLLOW-UP EMAIL:|$)/i);
           
+          // Clean em dashes from subject and body
           return {
             to: parsed.to || toAddresses,
-            subject: parsed.subject,
-            body: parsed.body,
+            subject: parsed.subject.replace(/—/g, '-').replace(/–/g, '-'),
+            body: parsed.body.replace(/—/g, '-').replace(/–/g, '-'),
             contextGathered: contextMatch ? contextMatch[0].trim() : undefined,
           };
         }
@@ -1010,15 +1011,48 @@ Remember: Use GIVE/GET framework. Be a confident founder. Keep it to 3-4 sentenc
       }
     }
 
-    // If no valid JSON, try to extract subject and body from text
+    // If no valid JSON, try to extract subject and body from markdown format
+    // Look for "Subject: ..." followed by the email body
+    const subjectLineMatch = response.match(/Subject:\s*(.+?)(?:\n|$)/i);
+    
+    if (subjectLineMatch) {
+      const subject = subjectLineMatch[1].trim();
+      
+      // Get everything after the subject line as the body
+      const subjectEndIndex = response.indexOf(subjectLineMatch[0]) + subjectLineMatch[0].length;
+      let body = response.slice(subjectEndIndex).trim();
+      
+      // Clean up the body - remove em dashes and clean formatting
+      body = body
+        .replace(/—/g, '-')  // Replace em dashes
+        .replace(/–/g, '-')  // Replace en dashes
+        .replace(/^\s*\n+/, '') // Remove leading newlines
+        .trim();
+      
+      // If body starts with common markdown, clean it up
+      if (body.startsWith('---')) {
+        body = body.replace(/^---\s*\n*/, '').trim();
+      }
+      
+      console.log(`[MeetingFollowup] Extracted email - Subject: "${subject.slice(0, 50)}..."`);
+      
+      return {
+        to: toAddresses,
+        subject: subject.replace(/—/g, '-').replace(/–/g, '-'),
+        body,
+        contextGathered: response.slice(0, subjectEndIndex - subjectLineMatch[0].length).trim() || undefined,
+      };
+    }
+
+    // Try older format with "subject:" and "body:" labels
     const subjectMatch = response.match(/subject[:\s]*["']?([^"'\n]+)["']?/i);
     const bodyMatch = response.match(/body[:\s]*["']?([\s\S]+?)["']?\s*(?:$|\})/i);
 
     if (subjectMatch && bodyMatch) {
       return {
         to: toAddresses,
-        subject: subjectMatch[1].trim(),
-        body: bodyMatch[1].trim(),
+        subject: subjectMatch[1].trim().replace(/—/g, '-').replace(/–/g, '-'),
+        body: bodyMatch[1].trim().replace(/—/g, '-').replace(/–/g, '-'),
         contextGathered: result.response.includes('CONTEXT GATHERED') 
           ? result.response.split('CONTEXT GATHERED')[1].split('FOLLOW-UP EMAIL')[0].trim()
           : undefined,
@@ -1030,7 +1064,7 @@ Remember: Use GIVE/GET framework. Be a confident founder. Keep it to 3-4 sentenc
     return {
       to: toAddresses,
       subject: `Underflow - ${meeting.title}`,
-      body: response,
+      body: response.replace(/—/g, '-').replace(/–/g, '-'),
     };
 
   } catch (error) {
