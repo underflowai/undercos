@@ -1,0 +1,11 @@
+# Nixpacks configuration for Railway
+# https://nixpacks.com/docs/configuration/file
+
+[phases.build]
+# Don't include env vars at build time - only needed at runtime
+# This suppresses Docker security warnings about secrets in ARG/ENV
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"
+
