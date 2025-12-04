@@ -1036,11 +1036,32 @@ Remember: Use GIVE/GET framework. Be a confident founder. Keep it to 3-4 sentenc
       
       console.log(`[MeetingFollowup] Extracted email - Subject: "${subject.slice(0, 50)}..."`);
       
+      // Extract the actual research - look for numbered points or sections before the email
+      // The research typically has patterns like "1)" or "*" or "DocuSign" etc.
+      const beforeSubject = response.slice(0, response.indexOf(subjectLineMatch[0]));
+      
+      // Find where actual research starts (usually after tool calls complete)
+      // Look for patterns like "1)", "Here's what I found", numbered lists, etc.
+      let contextGathered: string | undefined;
+      
+      // Try to find substantive research content (not just intro phrases)
+      const researchMatch = beforeSubject.match(/(?:1\)|Here's what I found|DocuSign|NDA|email history|searched|found)[\s\S]*/i);
+      if (researchMatch && researchMatch[0].length > 100) {
+        // Remove trailing intro phrases like "Here's a tight follow-up..."
+        contextGathered = researchMatch[0]
+          .replace(/(?:Here's a (?:tight |draft |)follow-up|---\s*$)[\s\S]*$/i, '')
+          .trim();
+        
+        if (contextGathered.length < 50) {
+          contextGathered = undefined; // Too short, probably not real research
+        }
+      }
+      
       return {
         to: toAddresses,
         subject: subject.replace(/—/g, '-').replace(/–/g, '-'),
         body,
-        contextGathered: response.slice(0, subjectEndIndex - subjectLineMatch[0].length).trim() || undefined,
+        contextGathered,
       };
     }
 
@@ -1187,7 +1208,7 @@ export async function surfaceMeetingFollowUp(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*🔍 Agent Research:*\n${draft.contextGathered.slice(0, 2500)}${draft.contextGathered.length > 2500 ? '...' : ''}`,
+        text: `*Agent Research:*\n${draft.contextGathered.slice(0, 2500)}${draft.contextGathered.length > 2500 ? '...' : ''}`,
       },
     });
   }
@@ -1201,7 +1222,7 @@ export async function surfaceMeetingFollowUp(
     type: 'section',
     text: {
       type: 'mrkdwn',
-      text: `*📧 Draft Email:*\n*Subject:* ${draft.subject}\n\n>${draft.body.split('\n').join('\n>')}`,
+      text: `*Draft Email:*\n*Subject:* ${draft.subject}\n\n>${draft.body.split('\n').join('\n>')}`,
     },
   });
 
