@@ -343,7 +343,7 @@ Generate a brief, personalized LinkedIn connection note (max 200 chars).`;
     
     if (result.success) {
       console.log(`[MeetingFollowup] Sent LinkedIn connection request to ${match.name}`);
-      return { found: true, alreadyConnected: false, queued: true };
+    return { found: true, alreadyConnected: false, queued: true };
     } else {
       console.log(`[MeetingFollowup] LinkedIn connection request failed: ${result.error}`);
       return { found: true, alreadyConnected: false, queued: false };

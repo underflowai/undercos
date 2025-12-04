@@ -451,6 +451,7 @@ export class UnipileClient {
 
   /**
    * Create an email draft
+   * Docs: https://developer.unipile.com/reference/draftscontroller_createdraft
    */
   async createEmailDraft(params: {
     account_id: string;
@@ -460,7 +461,7 @@ export class UnipileClient {
     cc?: string[];
     bcc?: string[];
   }): Promise<UnipileEmailResponse> {
-    return this.request<UnipileEmailResponse>('/api/v1/emails/drafts', {
+    return this.request<UnipileEmailResponse>('/api/v1/drafts', {
       method: 'POST',
       body: JSON.stringify({
         account_id: params.account_id,

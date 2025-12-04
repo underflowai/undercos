@@ -317,9 +317,9 @@ export class ResponsesRouter {
       try {
         currentResult = await this.client.submitToolOutputs(
           currentResult.id,
-          toolOutputs,
-          this.tools
-        );
+        toolOutputs,
+        this.tools
+      );
         console.log(`[ResponsesRouter] Got response, ${currentResult.functionCalls.length} more function calls`);
       } catch (error) {
         // If tool output submission fails, log and return what we have
