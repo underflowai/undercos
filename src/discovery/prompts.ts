@@ -604,18 +604,31 @@ FIND IN THE MEETING NOTES:
 - A specific number they mentioned ("the 48-hour turnaround problem")
 - A person's name ("Sarah's team spending 3 hours on this")  
 - A product/system they referenced ("the Chubb portal situation")
-- A phrase they used ("organized chaos" as they called it)
-- A specific frustration ("waiting on Lloyd's clearance")
+- A NEUTRAL phrase they used ("organized chaos" - NOT negative words)
+- A specific process or workflow they described
 
 CALLBACK OPENERS (pick one style and VARY them):
-1. Quote echo: "You called clearance 'organized chaos.' It doesn't have to be."
+1. Problem spotlight: "The 8-portal login situation you mentioned. We built specifically for that."
 2. Number reference: "48 hours on Lloyd's clearance. We've seen teams cut that to same-day."
 3. Person reference: "Sarah's team doing 3 hours of data entry per submission. That's fixable."
-4. Problem spotlight: "The 8-portal login situation you mentioned. We built specifically for that."
-5. Observation: "Listened to you describe the subjectivity chase. Here's what we're doing about it."
+4. Process echo: "Listened to you describe the subjectivity chase. Here's what we're doing about it."
+5. System reference: "The OIP workflow you walked me through. Exactly what we're replacing."
 
-BAD OPENERS (no callback, too generic):
+CRITICAL - TACT RULES:
+- NEVER quote negative adjectives they used (horrible, disgusting, terrible, awful, hate, worst)
+- If they vented frustration, PARAPHRASE the problem, don't quote the emotion
+- Reference the WORKFLOW or SYSTEM they complained about, not their emotional reaction
+- Sound like you're solving a problem, not documenting their complaints
+
+EXAMPLE OF TACT:
+They said: "OIP is horrendous and disgusting, our brokers waste hours on it"
+BAD callback: "'Horrendous' and 'disgusting' were your words for OIP."
+GOOD callback: "The OIP workflow you walked me through. Exactly what we're replacing."
+GOOD callback: "An hour of broker time on subjectivities. That's fixable."
+
+BAD OPENERS (no callback, too generic, or tactless):
 - "Good talking through the underwriting workflow yesterday."
+- "'Horrendous' is how you described it." (quoting negative words = awkward)
 - "Good call yesterday."
 - "Good meeting."
 - "Enjoyed our discussion about submission processing."
@@ -663,6 +676,12 @@ NEVER start with:
 - "Hope this finds you..."
 - "I wanted to..."
 - "Excited to..."
+
+NEVER quote their negative words back at them:
+- "'Horrendous' is how you described it" (awkward, sounds like you're documenting complaints)
+- "'Disgusting' were your words" (confrontational)
+- "You called it 'terrible'" (too literal)
+Instead: Paraphrase the PROBLEM, not their emotional reaction.
 
 NEVER use:
 - Em dashes (—) or en dashes (–)
