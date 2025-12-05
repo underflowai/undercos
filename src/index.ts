@@ -1,6 +1,7 @@
 import express from 'express';
 import { createSlackApp, registerHandlers, registerInteractions } from './slack/index.js';
 import { registerSummaryCommand } from './slack/summary.js';
+import { registerDiscoveryCommands } from './slack/discovery-commands.js';
 import { createResponsesClient } from './llm/index.js';
 import { createResponsesRouter } from './agent/index.js';
 import { isUnipileConfigured } from './tools/index.js';
@@ -90,6 +91,9 @@ async function main() {
   } else {
     console.log('[Init] Discovery disabled (no DISCOVERY_CHANNEL_ID)');
   }
+
+  // Slash commands for manual discovery runs
+  registerDiscoveryCommands(slackApp, discoveryEngine);
 
   // Status output
   const unipileStatus = isUnipileConfigured() 

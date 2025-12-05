@@ -50,7 +50,7 @@ export type DiscoveryConfig = z.infer<typeof discoveryConfigSchema>;
  */
 export const DEFAULT_DISCOVERY_CONFIG: DiscoveryConfig = {
   posts: {
-    enabled: true,
+    enabled: false,
     // AI generates search terms dynamically - no hardcoded keywords
     minEngagement: 10,
     maxPostsPerRun: 3, // Conservative - quality over quantity
@@ -58,7 +58,7 @@ export const DEFAULT_DISCOVERY_CONFIG: DiscoveryConfig = {
   },
 
   people: {
-    enabled: true,
+    enabled: false,
     // AI generates search queries dynamically - no hardcoded queries
     targetLocations: [
       'United States',
