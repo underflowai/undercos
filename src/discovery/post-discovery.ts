@@ -308,11 +308,9 @@ export async function surfacePost(
     },
   ];
 
-  const mention = config.slack.mentionUser ? `<@${config.slack.mentionUser}> ` : '';
-
   await slackClient.chat.postMessage({
     channel: config.slack.channelId,
-    text: `${mention}Found a relevant post by ${post.author.name}`,
+    text: `Found a relevant post by ${post.author.name}`,
     blocks,
   });
 }

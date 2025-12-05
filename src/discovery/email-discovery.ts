@@ -250,11 +250,9 @@ export async function surfaceMeetingNote(
     ],
   });
 
-  const mention = config.slack.mentionUser ? `<@${config.slack.mentionUser}> ` : '';
-
   await slackClient.chat.postMessage({
     channel: config.slack.channelId,
-    text: `${mention}New meeting notes from ${email.from.name || email.from.email}`,
+    text: `New meeting notes from ${email.from.name || email.from.email}`,
     blocks,
   });
 }
