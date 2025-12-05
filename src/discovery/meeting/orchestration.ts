@@ -237,7 +237,7 @@ export async function generateFollowUpDraft(
   meeting: EndedMeeting,
   notes: MeetingNotes,
   emailHistory?: EmailHistoryContext
-): Promise<{ to: string[]; subject: string; body: string }> {
+): Promise<{ to: string[]; subject: string; body: string; context?: string }> {
   const primaryRecipient = meeting.attendees.find(a => a.isExternal);
   if (!primaryRecipient) {
     throw new Error('No external attendees found');
@@ -311,19 +311,39 @@ Return JSON with "subject" and "body" fields.`;
     
     const text = result.text || '';
     
-    // Parse JSON response
+    // Parse JSON response - handle both flat and nested formats
     let cleanText = text;
+    
+    // Try to extract from code block first
     const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (codeBlockMatch) {
       cleanText = codeBlockMatch[1].trim();
     }
     
+    // Find the JSON object (may be preceded by reasoning text)
     const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0]);
+        
+        // Handle nested format: { context, email: { to, subject, body } }
+        if (parsed.email?.subject && parsed.email?.body) {
+          return {
+            to: parsed.email.to || toAddresses,
+            subject: parsed.email.subject,
+            body: parsed.email.body,
+            context: parsed.context,
+          };
+        }
+        
+        // Handle flat format: { subject, body }
         if (parsed.subject && parsed.body) {
-          return { to: toAddresses, subject: parsed.subject, body: parsed.body };
+          return {
+            to: toAddresses,
+            subject: parsed.subject,
+            body: parsed.body,
+            context: parsed.context,
+          };
         }
       } catch {
         // Fall through
@@ -519,6 +539,20 @@ export async function surfaceMeetingFollowUp(
         text: `*To:* ${primaryRecipient.email}\n*Priority:* ${classification.priority.charAt(0).toUpperCase() + classification.priority.slice(1)}`,
       },
     },
+  ];
+
+  // Add context block if available
+  if (draft.context) {
+    blocks.push({
+      type: 'context',
+      elements: [{
+        type: 'mrkdwn',
+        text: `_Context: ${draft.context.slice(0, 500)}${draft.context.length > 500 ? '...' : ''}_`,
+      }],
+    });
+  }
+
+  blocks.push(
     { type: 'divider' },
     {
       type: 'section',
@@ -567,8 +601,8 @@ export async function surfaceMeetingFollowUp(
           }),
         },
       ],
-    },
-  ];
+    }
+  );
 
   const parentMessage = await slackClient.chat.postMessage({
     channel: config.slack.channelId,
