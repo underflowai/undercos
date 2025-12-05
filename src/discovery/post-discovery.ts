@@ -11,6 +11,7 @@ import {
   searchLinkedIn,
   getLocationIds,
 } from '../tools/unipile-sdk.js';
+import { isPostSeen, addSeenPost, getSeenPostsCount } from '../db/posts.js';
 import type { DiscoveryConfig } from './config.js';
 import { shouldThrottle, recordActivity } from './activity-tracker.js';
 import { getContentGenerationConfig } from '../config/models.js';
@@ -192,7 +193,7 @@ export async function discoverPosts(
 
   // Filter: dedupe, engagement threshold
   let candidates = posts
-    .filter(p => !seenPosts.has(p.provider_id || p.id))
+    .filter(p => !isPostSeen(p.provider_id || p.id))
     .filter(p => (p.likes_count + p.comments_count) >= config.posts.minEngagement);
 
   console.log(`[PostDiscovery] ${candidates.length} posts passed basic filters`);
@@ -220,7 +221,7 @@ export async function discoverPosts(
 
   // Mark as seen
   for (const post of relevantPosts) {
-    seenPosts.add(post.provider_id || post.id);
+    addSeenPost(post.provider_id || post.id, post.provider_id || undefined);
   }
 
   return relevantPosts;
@@ -321,9 +322,8 @@ export async function surfacePost(
 /**
  * Get count of seen posts
  */
-export function getSeenPostsCount(): number {
-  return seenPosts.size;
-}
+// Persistent count from DB
+export { getSeenPostsCount } from '../db/posts.js';
 
 // ============================================
 // MOCK DATA
