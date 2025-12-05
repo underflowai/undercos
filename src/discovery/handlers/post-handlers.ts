@@ -29,7 +29,7 @@ export function registerPostHandlers(app: App): void {
           messageTs,
         }),
         title: { type: 'plain_text', text: 'Post Comment' },
-        submit: { type: 'plain_text', text: '💬 Post Comment' },
+        submit: { type: 'plain_text', text: 'Post Comment' },
         close: { type: 'plain_text', text: 'Cancel' },
         blocks: [
           {
@@ -80,8 +80,8 @@ export function registerPostHandlers(app: App): void {
         channel: metadata.channelId,
         thread_ts: metadata.messageTs,
         text: result.success
-          ? `✅ Comment posted: "${comment.slice(0, 100)}${comment.length > 100 ? '...' : ''}"`
-          : `❌ Failed to post comment: ${result.error}`,
+          ? `Comment posted: "${comment.slice(0, 100)}${comment.length > 100 ? '...' : ''}"`
+          : `Failed to post comment: ${result.error}`,
       });
     }
   });
@@ -103,7 +103,7 @@ export function registerPostHandlers(app: App): void {
       await client.chat.postMessage({
         channel: channelId,
         thread_ts: messageTs,
-        text: result.success ? '👍 Post liked' : `❌ Failed to like: ${result.error}`,
+        text: result.success ? 'Post liked' : `Failed to like: ${result.error}`,
       });
     }
   });
@@ -119,11 +119,11 @@ export function registerPostHandlers(app: App): void {
       await client.chat.update({
         channel: channelId,
         ts: messageTs,
-        text: '⏭️ Post skipped',
+        text: 'Post skipped',
         blocks: [
           {
             type: 'section',
-            text: { type: 'mrkdwn', text: '⏭️ _Post skipped_' },
+            text: { type: 'mrkdwn', text: '_Post skipped_' },
           },
         ],
       });
