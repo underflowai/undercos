@@ -54,12 +54,13 @@ export async function findMatchingMeetingNotes(
     }
 
     // Parse the meeting notes
-    const parsed = parseMeetingNotesContent(matchedEmail.body || '');
+    const rawBody = matchedEmail.body_plain || matchedEmail.body || '';
+    const parsed = parseMeetingNotesContent(rawBody);
 
     return {
       id: matchedEmail.id,
       subject: matchedEmail.subject || 'Meeting Notes',
-      body: matchedEmail.body || '',
+      body: rawBody,
       receivedAt: new Date(matchedEmail.date || Date.now()),
       keyPoints: parsed.keyPoints,
       actionItems: parsed.actionItems,
