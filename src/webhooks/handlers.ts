@@ -155,11 +155,10 @@ async function handleNewRelation(event: WebhookEvent, channelId: string): Promis
     removeSentInvitation(event.user_provider_id);
   }
   
-  const mention = env.DISCOVERY_MENTION_USER ? `<@${env.DISCOVERY_MENTION_USER}> ` : '';
-  
+    
   await slackClient.chat.postMessage({
     channel: channelId,
-    text: `${mention}${event.user_full_name} accepted your connection request`,
+    text: `${event.user_full_name} accepted your connection request`,
     blocks: [
       {
         type: 'section',
@@ -227,8 +226,7 @@ async function handleMessageReceived(event: WebhookEvent, channelId: string): Pr
   // It's an incoming message from someone else
   console.log(`[Webhook] New message from ${event.sender.attendee_name}: "${event.message.slice(0, 50)}..."`);
   
-  const mention = env.DISCOVERY_MENTION_USER ? `<@${env.DISCOVERY_MENTION_USER}> ` : '';
-  const profileUrl = event.sender.attendee_profile_url || '';
+    const profileUrl = event.sender.attendee_profile_url || '';
   
   // Truncate long messages
   const messagePreview = event.message.length > 200 
@@ -237,7 +235,7 @@ async function handleMessageReceived(event: WebhookEvent, channelId: string): Pr
   
   await slackClient.chat.postMessage({
     channel: channelId,
-    text: `${mention}New LinkedIn message from ${event.sender.attendee_name}`,
+    text: `New LinkedIn message from ${event.sender.attendee_name}`,
     blocks: [
       {
         type: 'section',
@@ -480,12 +478,11 @@ async function checkForConnectionAcceptance(event: WebhookEvent, channelId: stri
     tracked.notified = true;
     
     const profileUrl = event.sender.attendee_profile_url || '';
-    const mention = env.DISCOVERY_MENTION_USER ? `<@${env.DISCOVERY_MENTION_USER}> ` : '';
-    
+        
     if (slackClient) {
       await slackClient.chat.postMessage({
         channel: channelId,
-        text: `${mention}${event.sender.attendee_name} accepted your connection request`,
+        text: `${event.sender.attendee_name} accepted your connection request`,
         blocks: [
           {
             type: 'section',
