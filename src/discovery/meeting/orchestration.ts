@@ -26,7 +26,6 @@ import {
 import { getContentGenerationConfig } from '../../config/models.js';
 import { generateContent } from '../../llm/content-generator.js';
 import type { DiscoveryConfig } from '../config.js';
-import { postConnectionMessage } from '../../slack/connection-thread.js';
 
 import type {
   EndedMeeting,
@@ -93,6 +92,71 @@ Duration: ${Math.round((meeting.endTime.getTime() - meeting.startTime.getTime())
 // =============================================================================
 // LINKEDIN CONNECTION
 // =============================================================================
+
+function buildMeetingConnectionBlocks(
+  meeting: EndedMeeting,
+  attendee: MeetingAttendee,
+  opts: { note?: string; profileId?: string; profileUrl?: string }
+): KnownBlock[] {
+  const note = opts.note || '';
+  const baseText = `*${attendee.name || attendee.email}*\nMeeting: ${meeting.title}`;
+
+  const blocks: KnownBlock[] = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: note ? `${baseText}\n\nSuggested note:\n>${note}` : baseText,
+      },
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Approve', emoji: false },
+          style: 'primary',
+          action_id: 'discovery_connect_approve',
+          value: JSON.stringify({
+            profileId: opts.profileId,
+            profileUrl: opts.profileUrl,
+            profileName: attendee.name,
+            draft: note,
+          }),
+        },
+        ...(opts.profileUrl
+          ? [
+              {
+                type: 'button' as const,
+                text: { type: 'plain_text' as const, text: 'View Profile', emoji: false },
+                url: opts.profileUrl,
+                action_id: 'discovery_view_profile',
+              },
+            ]
+          : []),
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Edit Note', emoji: false },
+          action_id: 'discovery_connect',
+          value: JSON.stringify({
+            profileId: opts.profileId,
+            profileUrl: opts.profileUrl,
+            profileName: attendee.name,
+            draft: note,
+          }),
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Skip', emoji: false },
+          action_id: 'discovery_skip_person',
+          value: attendee.email || attendee.name || '',
+        },
+      ],
+    },
+  ];
+
+  return blocks;
+}
 
 /**
  * Look up meeting attendee on LinkedIn and queue connection request if not connected
@@ -430,7 +494,7 @@ export async function surfaceMeetingFollowUp(
       text: {
         type: 'plain_text',
         text: `Meeting Follow-up: ${meeting.title}`,
-        emoji: true,
+        emoji: false,
       },
     },
     {
@@ -454,7 +518,7 @@ export async function surfaceMeetingFollowUp(
       elements: [
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Create Draft', emoji: true },
+          text: { type: 'plain_text', text: 'Create Draft', emoji: false },
           style: 'primary',
           action_id: 'meeting_followup_send',
           value: JSON.stringify({
@@ -467,7 +531,7 @@ export async function surfaceMeetingFollowUp(
         },
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Edit', emoji: true },
+          text: { type: 'plain_text', text: 'Edit', emoji: false },
           action_id: 'meeting_followup_edit',
           value: JSON.stringify({
             meetingId: meeting.id,
@@ -478,7 +542,7 @@ export async function surfaceMeetingFollowUp(
         },
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Skip', emoji: true },
+          text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'meeting_followup_skip',
           value: meeting.id,
         },
@@ -486,29 +550,51 @@ export async function surfaceMeetingFollowUp(
     },
   ];
 
-  const meetingAttendees = meeting.attendees.filter(a => a.isExternal);
-  for (const attendee of meetingAttendees) {
-    await postConnectionMessage(slackClient, config.slack.channelId, {
-      text: `Meeting connection: ${attendee.name || attendee.email}`,
-      blocks: [
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*${attendee.name || attendee.email}*
-Meeting: ${meeting.title}
-Status: posted to daily thread (no deferral)`
-          },
-        },
-      ],
-    });
-  }
-
-  await slackClient.chat.postMessage({
+  const parentMessage = await slackClient.chat.postMessage({
     channel: config.slack.channelId,
     text: `Meeting follow-up ready: ${meeting.title}`,
     blocks,
   });
+
+  const meetingAttendees = meeting.attendees.filter(a => a.isExternal);
+  if (parentMessage.ts) {
+    for (const attendee of meetingAttendees) {
+      let providerId: string | undefined;
+      let profileUrl: string | undefined;
+
+      try {
+        const email = attendee.email || '';
+        const companyHint = email ? email.split('@')[1]?.split('.')[0] : undefined;
+        const { resolveProviderId } = await import('../../tools/linkedin.js');
+        const resolution = await resolveProviderId({
+          profileName: attendee.name || (email ? email.split('@')[0] : ''),
+          companyHint,
+        } as any);
+        if (resolution.providerId) {
+          providerId = resolution.providerId;
+        }
+        if (resolution.profileUrl) {
+          profileUrl = resolution.profileUrl;
+        }
+      } catch (error) {
+        console.error('[Surfacing] Could not resolve provider_id for attendee', attendee.email, error);
+      }
+
+      const suggestedNote = `Great meeting about ${meeting.title} on ${meeting.endTime.toLocaleDateString()}. Let's stay in touch.`;
+      const connectionBlocks = buildMeetingConnectionBlocks(meeting, attendee, {
+        note: suggestedNote,
+        profileId: providerId,
+        profileUrl,
+      });
+
+      await slackClient.chat.postMessage({
+        channel: config.slack.channelId,
+        thread_ts: parentMessage.ts,
+        text: `Connection: ${attendee.name || attendee.email}`,
+        blocks: connectionBlocks,
+      });
+    }
+  }
 
   console.log(`[Surfacing] Posted follow-up for "${meeting.title}" to Slack`);
 }

@@ -16,7 +16,6 @@ import { shouldThrottle, recordActivity } from './activity-tracker.js';
 import { getContentGenerationConfig } from '../config/models.js';
 import { generateContent } from '../llm/content-generator.js';
 import { env } from '../config/env.js';
-import { postConnectionMessage } from '../slack/connection-thread.js';
 import {
   POST_SEARCH_TERMS_PROMPT,
   POST_RELEVANCE_PROMPT,
@@ -239,31 +238,6 @@ export async function surfacePost(
     });
   }
 
-  const dailyBlocks: KnownBlock[] = [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*${post.author.name}*${post.author.headline ? ` · ${post.author.headline}` : ''}\n${post.text.slice(0, 200)}${post.text.length > 200 ? '...' : ''}` ,
-      },
-    },
-  ];
-  if (post.url) {
-    dailyBlocks.push({
-      type: 'context',
-      elements: [{ type: 'mrkdwn', text: `<${post.url}|Open Post>` }],
-    });
-  }
-  dailyBlocks.push({
-    type: 'context',
-    elements: [{ type: 'mrkdwn', text: 'Status: pending action' }],
-  });
-
-  const daily: { threadTs: string; messageTs: string } = await postConnectionMessage(slackClient, config.slack.channelId, {
-    text: `Post: ${post.author.name}`,
-    blocks: dailyBlocks,
-  });
-
   const blocks: KnownBlock[] = [
     ...baseBlocks,
     {
@@ -278,8 +252,6 @@ export async function surfacePost(
             postId: post.provider_id || post.id,
             postUrl: post.url,
             draftComment,
-            queueChannelId: config.slack.channelId,
-            queueMessageTs: daily.messageTs,
           }),
         },
         {
@@ -289,8 +261,6 @@ export async function surfacePost(
           value: JSON.stringify({
             postId: post.provider_id || post.id,
             postUrl: post.url,
-            queueChannelId: config.slack.channelId,
-            queueMessageTs: daily.messageTs,
           }),
         },
         {
@@ -300,8 +270,6 @@ export async function surfacePost(
           value: JSON.stringify({
             postId: post.provider_id || post.id,
             postUrl: post.url,
-            queueChannelId: config.slack.channelId,
-            queueMessageTs: daily.messageTs,
           }),
         },
       ],
