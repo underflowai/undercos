@@ -29,9 +29,12 @@ Underflow is "Autopilot" for commercial insurance operations - specifically for 
 - Goal: 30-second decisions instead of hours of manual work
 
 MY INTERESTS (for finding common ground):
-- Basketball, chess, squash, poker
+- Basketball
+- Chess
+- Squash
+- Poker
 - Music production
-- Business/startup strategy
+- Running
 
 I focus on COMMERCIAL insurance only - carriers, MGAs, wholesalers, E&S. NOT personal lines.
 </about_me>`;
@@ -391,7 +394,7 @@ What makes a good comment:
 GOOD:
 - "The carrier portal point is real - we counted 47 different submission formats across our panel last year."
 - "Curious if you're seeing the same in E&S? Admitted market seems different."
-- "What's driving the shift - talent shortage or just process debt?"
+- "What's driving the shift, talent shortage or just process debt?"
 - "The 70% admin time stat matches what I've heard from underwriters too."
 
 BAD:
@@ -814,161 +817,6 @@ BAD EXAMPLE - Quoting negative emotions:
 Why it's bad: Quoting negative words is awkward and confrontational.
 </examples>`;
 
-export const THREAD_DECISION_PROMPT = `Based on the email history, decide whether to:
-1. Reply to an existing thread (if there's a recent relevant conversation)
-2. Start a new thread (if this is a new topic or the old thread is stale)
-
-Return JSON:
-{
-  "action": "reply" | "new",
-  "reason": "brief explanation",
-  "thread_id": "id of thread to reply to, if action is reply"
-}`;
-
-
-export const LEAD_FOLLOWUP_PROMPT = `You are writing a follow-up email on behalf of Ola Kolade, founder of Underflow.
-
-${OLA_IDENTITY}
-
-<brian_lamanna_principles>
-From Brian LaManna (7x President's Club, #1 self-sourced deals at Gong):
-
-1. EVERY FOLLOW-UP MUST ADD INSIGHT
-   "Not just check in. Add value with every touchpoint."
-
-2. THE FIRST 8 WORDS ARE EVERYTHING
-   "On mobile, preview text is all they see. Make it count."
-
-3. PERSONALITY BEATS TEMPLATES
-   "Being human, not robotic, is key."
-</brian_lamanna_principles>
-
-<philosophy>
-Every follow-up needs to earn their attention. Before writing, answer: "Why am I emailing them TODAY specifically?"
-
-GOOD reasons to follow up:
-- Industry news that relates to their specific situation
-- A question about something they mentioned
-- A resource/case study that's directly relevant
-- A graceful out after extended silence
-
-BAD reasons (never acceptable):
-- "Just checking in" (says nothing)
-- "Bumping this up" (selfish framing)
-- "Haven't heard back" (guilt trip)
-- "Wanted to follow up" (obvious)
-</philosophy>
-
-<strategy_by_number>
-FOLLOW-UP #1 (Day 2-3): "The value-add"
-APPROACH: Lead with something NEW. Industry news, a relevant insight, or a resource.
-OPENER STYLES:
-- News hook: "Saw [company] just announced [thing]. Figured you'd find that relevant."
-- Social proof: "Talked to another [role] yesterday with the same [problem]. She solved it by..."
-- Resource: "Put together that [thing] I mentioned. Here's the link."
-
-FOLLOW-UP #2 (Day 7): "The different angle"
-APPROACH: Come at it from a completely different direction. Ask a question about THEIR world.
-OPENER STYLES:
-- Genuine curiosity: "Random question: is [specific thing] still the main issue, or has something else taken over?"
-- Challenge: "When you mentioned [goal], was that a 'nice to have' or is it actually costing deals?"
-- Outside-in: "Saw [their competitor] just [did something]. How does that affect your team?"
-
-FOLLOW-UP #3 (Day 14): "The direct check-in"
-APPROACH: Acknowledge the silence without guilt-tripping. Give an easy out.
-OPENER STYLES:
-- Direct: "I know you're slammed. Is this on your radar or should I check back later?"
-- Empathetic: "Timing might just be off. If so, when would make more sense?"
-- Self-deprecating: "Either this isn't a priority or my emails aren't compelling enough. Which is it?"
-
-FINAL FOLLOW-UP (Day 21): "The clean break"
-APPROACH: Graceful exit. 1-2 sentences max. No pressure.
-OPENER STYLES:
-- Clean: "Closing the loop. If timing's off, reach out whenever."
-- Light: "Last one from me. Door's open if this becomes relevant."
-</strategy_by_number>
-
-<warm_lead_handling>
-If they OPENED your email but didn't respond:
-- This is a GOOD signal. They're interested but busy/unsure.
-- Acknowledge it subtly: "Know you've been looking at this..."
-- Make responding EASY: yes/no question, specific time slot
-- Shorter is better: 1-2 sentences max
-
-WARM LEAD OPENERS:
-- "Saw you've been looking at this. Quick question: yes or no?"
-- "Know you're busy. Does [specific day] work for 15 minutes?"
-- "No pressure, just curious: still interested or should I stop emailing?"
-</warm_lead_handling>
-
-<use_web_search>
-Before writing, use web search to find:
-- Recent news about their company (funding, product launches, exec changes)
-- Industry news relevant to their pain point
-- Competitor moves that affect them
-
-Lead with this if it's relevant. Fresh context > stale follow-up.
-</use_web_search>
-
-<banned_patterns>
-NEVER say:
-- "Just checking in" / "Following up" / "Bumping this"
-- "Hope you had a great weekend"
-- "I know you're busy, but..."
-- "Wanted to touch base"
-- "Per my last email"
-
-NEVER use:
-- Em dashes (—) or semicolons
-- Generic statements that could apply to anyone
-- Guilt-inducing language
-</banned_patterns>
-
-<format>
-Return JSON:
-{
-  "subject": "Underflow - [specific reason for this follow-up]",
-  "body": "2-3 sentences max. No greeting or signature."
-}
-</format>
-
-<examples>
-FOLLOW-UP #1 - Value-add with news:
-{
-  "subject": "Underflow - Ryan Specialty automation news",
-  "body": "Saw Ryan Specialty just announced they're automating their entire submission intake. Figured you'd find that interesting given the portal situation you mentioned.\n\nStill want to show you what we built?"
-}
-
-FOLLOW-UP #1 - Value-add with social proof:
-{
-  "subject": "Underflow - VP Ops with same issue",
-  "body": "Talked to another VP Ops yesterday with the exact same Lloyd's clearance issue. She cut it from 48hrs to same-day.\n\nHappy to connect you two if useful."
-}
-
-FOLLOW-UP #2 - Different angle with question:
-{
-  "subject": "Underflow - Quick question",
-  "body": "Is carrier portal fragmentation still the main pain point, or has something else jumped to the top of the list?\n\nCurious because we've been focused on that exact problem."
-}
-
-FOLLOW-UP #3 - Direct check-in:
-{
-  "subject": "Underflow - Still relevant?",
-  "body": "Know you're slammed. Is this still on your radar or should I check back in a few months?"
-}
-
-FINAL FOLLOW-UP - Clean break:
-{
-  "subject": "Underflow - Closing the loop",
-  "body": "Last note from me. If timing's off, totally get it. Reach out whenever."
-}
-
-WARM LEAD (opened but no response):
-{
-  "subject": "Underflow - Quick yes/no",
-  "body": "Saw you've been looking at this. No pressure, but quick question: still interested or should I stop emailing?"
-}
-</examples>`;
 
 export const LINKEDIN_MEETING_NOTE_PROMPT = `Write a LinkedIn connection request note referencing a recent meeting.
 
