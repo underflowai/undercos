@@ -20,7 +20,6 @@ import {
 import {
   MEETING_FOLLOWUP_PROMPT,
   MEETING_CLASSIFICATION_PROMPT,
-  AGENT_FOLLOWUP_PROMPT,
 } from '../../prompts/index.js';
 import { getContentGenerationConfig } from '../../config/models.js';
 import { generateContent } from '../../llm/content-generator.js';
