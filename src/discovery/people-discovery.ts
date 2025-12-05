@@ -511,7 +511,12 @@ function getDateKey(date: Date = new Date()): string {
   return date.toISOString().split('T')[0];
 }
 
-function buildConnectionBlocks(messageText: string, profile: DiscoveredProfile, draftNote: string): KnownBlock[] {
+function buildConnectionBlocks(
+  messageText: string,
+  profile: DiscoveredProfile,
+  draftNote: string,
+  opts: { includeSendWithoutNote?: boolean } = { includeSendWithoutNote: true }
+): KnownBlock[] {
   return [
     {
       type: 'section',
@@ -524,12 +529,22 @@ function buildConnectionBlocks(messageText: string, profile: DiscoveredProfile, 
       type: 'actions',
       elements: [
         {
-          type: 'button',
-          text: { type: 'plain_text', text: 'Approve', emoji: false },
+          type: 'button' as const,
+          text: { type: 'plain_text' as const, text: 'Approve', emoji: false },
           style: 'primary',
           action_id: 'discovery_connect_approve',
           value: JSON.stringify({ profileId: profile.provider_id, profileUrl: profile.profile_url, profileName: profile.name, draft: draftNote }),
         },
+        ...(opts.includeSendWithoutNote
+          ? [
+              {
+                type: 'button' as const,
+                text: { type: 'plain_text' as const, text: 'Send without note', emoji: false },
+                action_id: 'discovery_connect_approve',
+                value: JSON.stringify({ profileId: profile.provider_id, profileUrl: profile.profile_url, profileName: profile.name, draft: '' }),
+              },
+            ]
+          : []),
         ...(profile.profile_url ? [{
           type: 'button' as const,
           text: { type: 'plain_text' as const, text: 'View Profile', emoji: false },

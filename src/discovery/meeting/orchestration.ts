@@ -96,17 +96,22 @@ Duration: ${Math.round((meeting.endTime.getTime() - meeting.startTime.getTime())
 function buildMeetingConnectionBlocks(
   meeting: EndedMeeting,
   attendee: MeetingAttendee,
-  opts: { note?: string; profileId?: string; profileUrl?: string }
+  opts: { profileId?: string; profileUrl?: string }
 ): KnownBlock[] {
-  const note = opts.note || '';
   const baseText = `*${attendee.name || attendee.email}*\nMeeting: ${meeting.title}`;
+  const actionPayload = {
+    profileId: opts.profileId,
+    profileUrl: opts.profileUrl,
+    profileName: attendee.name,
+    draft: '',
+  };
 
   const blocks: KnownBlock[] = [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: note ? `${baseText}\n\nSuggested note:\n>${note}` : baseText,
+        text: baseText,
       },
     },
     {
@@ -114,15 +119,10 @@ function buildMeetingConnectionBlocks(
       elements: [
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Approve', emoji: false },
+          text: { type: 'plain_text', text: 'Connect', emoji: false },
           style: 'primary',
           action_id: 'discovery_connect_approve',
-          value: JSON.stringify({
-            profileId: opts.profileId,
-            profileUrl: opts.profileUrl,
-            profileName: attendee.name,
-            draft: note,
-          }),
+          value: JSON.stringify(actionPayload),
         },
         ...(opts.profileUrl
           ? [
@@ -136,14 +136,9 @@ function buildMeetingConnectionBlocks(
           : []),
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Edit Note', emoji: false },
+          text: { type: 'plain_text', text: 'Add Note', emoji: false },
           action_id: 'discovery_connect',
-          value: JSON.stringify({
-            profileId: opts.profileId,
-            profileUrl: opts.profileUrl,
-            profileName: attendee.name,
-            draft: note,
-          }),
+          value: JSON.stringify(actionPayload),
         },
         {
           type: 'button',
@@ -580,9 +575,7 @@ export async function surfaceMeetingFollowUp(
         console.error('[Surfacing] Could not resolve provider_id for attendee', attendee.email, error);
       }
 
-      const suggestedNote = `Great meeting about ${meeting.title} on ${meeting.endTime.toLocaleDateString()}. Let's stay in touch.`;
       const connectionBlocks = buildMeetingConnectionBlocks(meeting, attendee, {
-        note: suggestedNote,
         profileId: providerId,
         profileUrl,
       });

@@ -386,6 +386,15 @@ export class SalesLeadRepository {
     return row as SurfacedMeeting | undefined;
   }
 
+  getPendingSurfacedMeetings(): SurfacedMeeting[] {
+    return this.db.prepare(
+      `SELECT * FROM surfaced_meetings 
+        WHERE status = 'surfaced'
+        ORDER BY surfaced_at DESC
+        LIMIT 50`
+    ).all() as SurfacedMeeting[];
+  }
+
   getSurfacedMeetingStats() {
     return this.db.prepare(`
       SELECT 
@@ -466,6 +475,7 @@ export const markMeetingSkipped = (meetingId: string) => repo.updateMeetingStatu
 export const markMeetingSent = (meetingId: string) => repo.updateMeetingStatus(meetingId, 'sent');
 export const getSurfacedMeeting = (meetingId: string) => repo.getSurfacedMeeting(meetingId);
 export const getSurfacedMeetingStats = () => repo.getSurfacedMeetingStats();
+export const getPendingSurfacedMeetings = () => repo.getPendingSurfacedMeetings();
 
 // Helpers for complex queries
 export const hasMeetingBeenProcessed = (meetingId: string): boolean => {

@@ -45,6 +45,7 @@ import { discoverMeetingFollowUps, runHistoricalBackfill } from './meeting-follo
 
 // Lead follow-up cadence
 import { runFollowUpCadence, runResponseDetection as checkForResponses } from './lead-followup.js';
+import { postDailySummary } from '../slack/summary.js';
 
 /**
  * Discovery Engine - the main orchestrator
@@ -53,6 +54,7 @@ export class DiscoveryEngine {
   private slackClient: WebClient;
   private llm: ResponsesAPIClient;
   private isRunning = false;
+  private lastSummaryDate: string | null = null;
 
   constructor(slackClient: WebClient, llm: ResponsesAPIClient) {
     this.slackClient = slackClient;
@@ -118,6 +120,14 @@ export class DiscoveryEngine {
       'Response Detection',
       60,
       () => this.runResponseDetection()
+    );
+
+    // Schedule daily summary (hourly check after target time)
+    scheduleTask(
+      'daily-summary',
+      'Daily Summary',
+      60,
+      () => this.runDailySummary()
     );
 
     this.isRunning = true;
@@ -334,6 +344,30 @@ export class DiscoveryEngine {
       case 'historical_backfill':
         await this.runHistoricalBackfill(30);
         break;
+    }
+  }
+
+  /**
+   * Post end-of-day summary once per day after target hour
+   */
+  private async runDailySummary(): Promise<void> {
+    const config = getDiscoveryConfig();
+    const channelId = config.slack.channelId;
+    if (!channelId) return;
+
+    const now = new Date();
+    const dateKey = now.toISOString().split('T')[0];
+    const targetHour = 17; // 5pm local time
+
+    if (this.lastSummaryDate === dateKey) return;
+    if (now.getHours() < targetHour) return;
+
+    try {
+      await postDailySummary(this.slackClient, channelId, now);
+      this.lastSummaryDate = dateKey;
+      console.log('[Discovery] Posted daily summary');
+    } catch (error) {
+      console.error('[Discovery] Failed to post daily summary:', error);
     }
   }
 }

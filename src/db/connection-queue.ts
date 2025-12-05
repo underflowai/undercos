@@ -148,3 +148,21 @@ export function dequeueSuggestionsForDate(date: string, limit: number): QueuedSu
     ...(JSON.parse(r.payload_json) as QueuedSuggestionPayload),
   }));
 }
+
+export function getQueuedSuggestionCounts(date: Date = new Date()): {
+  dueToday: number;
+  future: number;
+} {
+  const key = dateKey(date);
+  const rowDue = db.prepare(
+    `SELECT COUNT(*) as count FROM connection_suggestions WHERE scheduled_for <= @date`
+  ).get({ date: key }) as { count: number } | undefined;
+  const rowFuture = db.prepare(
+    `SELECT COUNT(*) as count FROM connection_suggestions WHERE scheduled_for > @date`
+  ).get({ date: key }) as { count: number } | undefined;
+
+  return {
+    dueToday: rowDue?.count || 0,
+    future: rowFuture?.count || 0,
+  };
+}

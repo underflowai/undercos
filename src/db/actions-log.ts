@@ -105,3 +105,36 @@ export function getLatestAction(actionType: string, entityType: string, entityId
     data: parsed.data_json ? JSON.parse(parsed.data_json as string) : undefined,
   } as LoggedAction;
 }
+
+function toDateKey(date: Date = new Date()): string {
+  return date.toISOString().split('T')[0];
+}
+
+export function getActionCountsByDate(date: Date = new Date()): Array<{
+  actionType: string;
+  status: ActionStatus;
+  count: number;
+}> {
+  const key = toDateKey(date);
+  const rows = db.prepare(
+    `SELECT action_type as actionType, status, COUNT(*) as count
+       FROM actions_log
+      WHERE date(created_at) = @date
+      GROUP BY action_type, status`
+  ).all({ date: key }) as Array<{ actionType: string; status: ActionStatus; count: number }>;
+  return rows || [];
+}
+
+export function getPendingActions(date: Date = new Date()): Array<LoggedAction> {
+  const key = toDateKey(date);
+  const rows = db.prepare(
+    `SELECT * FROM actions_log
+      WHERE date(created_at) = @date AND status = 'pending'
+      ORDER BY created_at DESC`
+  ).all({ date: key }) as Array<any>;
+
+  return rows.map((row) => ({
+    ...row,
+    data: row.data_json ? JSON.parse(row.data_json) : undefined,
+  })) as LoggedAction[];
+}

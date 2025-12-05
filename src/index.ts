@@ -1,5 +1,6 @@
 import express from 'express';
 import { createSlackApp, registerHandlers, registerInteractions } from './slack/index.js';
+import { registerSummaryCommand } from './slack/summary.js';
 import { createResponsesClient } from './llm/index.js';
 import { createResponsesRouter } from './agent/index.js';
 import { isUnipileConfigured } from './tools/index.js';
@@ -51,6 +52,9 @@ async function main() {
   registerInteractions(slackApp, router);
   registerDiscoveryHandlers(slackApp);
   registerLinkedInMessagingHandlers(slackApp);
+  if (env.DISCOVERY_CHANNEL_ID) {
+    registerSummaryCommand(slackApp, env.DISCOVERY_CHANNEL_ID);
+  }
 
   // Start Slack app (Socket Mode)
   await slackApp.start();
