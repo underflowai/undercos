@@ -449,7 +449,7 @@ export async function surfaceMeetingFollowUp(
       type: 'header',
       text: {
         type: 'plain_text',
-        text: `📧 Meeting Follow-up: ${meeting.title}`,
+        text: `Meeting Follow-up: ${meeting.title}`,
         emoji: true,
       },
     },
@@ -474,7 +474,7 @@ export async function surfaceMeetingFollowUp(
       elements: [
         {
           type: 'button',
-          text: { type: 'plain_text', text: '✅ Send', emoji: true },
+          text: { type: 'plain_text', text: 'Create Draft', emoji: true },
           style: 'primary',
           action_id: 'meeting_followup_send',
           value: JSON.stringify({
@@ -487,7 +487,7 @@ export async function surfaceMeetingFollowUp(
         },
         {
           type: 'button',
-          text: { type: 'plain_text', text: '✏️ Edit', emoji: true },
+          text: { type: 'plain_text', text: 'Edit', emoji: true },
           action_id: 'meeting_followup_edit',
           value: JSON.stringify({
             meetingId: meeting.id,
@@ -498,7 +498,7 @@ export async function surfaceMeetingFollowUp(
         },
         {
           type: 'button',
-          text: { type: 'plain_text', text: '❌ Skip', emoji: true },
+          text: { type: 'plain_text', text: 'Skip', emoji: true },
           action_id: 'meeting_followup_skip',
           value: meeting.id,
         },

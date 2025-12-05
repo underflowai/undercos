@@ -579,7 +579,7 @@ export async function surfacePerson(
         }] : []),
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Edit Draft', emoji: false },
+          text: { type: 'plain_text', text: 'Edit Note', emoji: false },
           action_id: 'discovery_connect',
           value: JSON.stringify({ profileId: profile.provider_id, profileUrl: profile.profile_url, profileName: profile.name, draft: draftNote }),
         },
