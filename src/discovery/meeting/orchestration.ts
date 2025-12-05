@@ -585,6 +585,9 @@ export async function surfaceMeetingFollowUp(
         try {
           const { getProfile, hasPendingInvitation } = await import('../../tools/unipile-sdk.js');
           const profile = await getProfile(providerId) as any;
+          if (!profileUrl && profile?.profile_url) {
+            profileUrl = profile.profile_url;
+          }
           if (profile?.is_connection) {
             continue;
           }
