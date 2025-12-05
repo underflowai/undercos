@@ -16,6 +16,7 @@ import { shouldThrottle, recordActivity } from './activity-tracker.js';
 import { getContentGenerationConfig } from '../config/models.js';
 import { generateContent } from '../llm/content-generator.js';
 import { env } from '../config/env.js';
+import { postConnectionMessage } from '../slack/connection-thread.js';
 import {
   POST_SEARCH_TERMS_PROMPT,
   POST_RELEVANCE_PROMPT,
@@ -206,12 +207,14 @@ export async function surfacePost(
     draftComment = await generateComment(llm, post);
   }
 
-  const blocks: KnownBlock[] = [
+  const baseBlocks: KnownBlock[] = [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*${post.author.name}*${post.author.headline ? ` · ${post.author.headline}` : ''}\n\n"${post.text.slice(0, 300)}${post.text.length > 300 ? '...' : ''}"`,
+        text: `*${post.author.name}*${post.author.headline ? ` · ${post.author.headline}` : ''}
+
+"${post.text.slice(0, 300)}${post.text.length > 300 ? '...' : ''}"`,
       },
     },
     {
@@ -226,39 +229,84 @@ export async function surfacePost(
   ];
 
   if (draftComment) {
-    blocks.push({
+    baseBlocks.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Draft comment:*\n\`\`\`${draftComment}\`\`\``,
+        text: `*Draft comment:*
+\`\`\`${draftComment}\`\`\``,
       },
     });
   }
 
-  blocks.push({
-    type: 'actions',
-    elements: [
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: 'Comment', emoji: false },
-        style: 'primary',
-        action_id: 'discovery_comment',
-        value: JSON.stringify({ postId: post.provider_id || post.id, postUrl: post.url, draft: draftComment }),
+  const dailyBlocks: KnownBlock[] = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*${post.author.name}*${post.author.headline ? ` · ${post.author.headline}` : ''}\n${post.text.slice(0, 200)}${post.text.length > 200 ? '...' : ''}` ,
       },
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: 'Like', emoji: false },
-        action_id: 'discovery_like',
-        value: JSON.stringify({ postId: post.provider_id || post.id, postUrl: post.url }),
-      },
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: 'Skip', emoji: false },
-        action_id: 'discovery_skip',
-        value: post.id,
-      },
-    ],
+    },
+  ];
+  if (post.url) {
+    dailyBlocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `<${post.url}|Open Post>` }],
+    });
+  }
+  dailyBlocks.push({
+    type: 'context',
+    elements: [{ type: 'mrkdwn', text: 'Status: pending action' }],
   });
+
+  const daily: { threadTs: string; messageTs: string } = await postConnectionMessage(slackClient, config.slack.channelId, {
+    text: `Post: ${post.author.name}`,
+    blocks: dailyBlocks,
+  });
+
+  const blocks: KnownBlock[] = [
+    ...baseBlocks,
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Comment', emoji: false },
+          style: 'primary',
+          action_id: 'discovery_comment',
+          value: JSON.stringify({
+            postId: post.provider_id || post.id,
+            postUrl: post.url,
+            draftComment,
+            queueChannelId: config.slack.channelId,
+            queueMessageTs: daily.messageTs,
+          }),
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Like', emoji: false },
+          action_id: 'discovery_like',
+          value: JSON.stringify({
+            postId: post.provider_id || post.id,
+            postUrl: post.url,
+            queueChannelId: config.slack.channelId,
+            queueMessageTs: daily.messageTs,
+          }),
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Skip', emoji: false },
+          action_id: 'discovery_skip',
+          value: JSON.stringify({
+            postId: post.provider_id || post.id,
+            postUrl: post.url,
+            queueChannelId: config.slack.channelId,
+            queueMessageTs: daily.messageTs,
+          }),
+        },
+      ],
+    },
+  ];
 
   const mention = config.slack.mentionUser ? `<@${config.slack.mentionUser}> ` : '';
 

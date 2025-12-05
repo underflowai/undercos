@@ -26,6 +26,7 @@ import {
 import { getContentGenerationConfig } from '../../config/models.js';
 import { generateContent } from '../../llm/content-generator.js';
 import type { DiscoveryConfig } from '../config.js';
+import { postConnectionMessage } from '../../slack/connection-thread.js';
 
 import type {
   EndedMeeting,
@@ -484,6 +485,24 @@ export async function surfaceMeetingFollowUp(
       ],
     },
   ];
+
+  const meetingAttendees = meeting.attendees.filter(a => a.isExternal);
+  for (const attendee of meetingAttendees) {
+    await postConnectionMessage(slackClient, config.slack.channelId, {
+      text: `Meeting connection: ${attendee.name || attendee.email}`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*${attendee.name || attendee.email}*
+Meeting: ${meeting.title}
+Status: posted to daily thread (no deferral)`
+          },
+        },
+      ],
+    });
+  }
 
   await slackClient.chat.postMessage({
     channel: config.slack.channelId,

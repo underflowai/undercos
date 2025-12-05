@@ -1,3 +1,5 @@
+import { getDailyCount as getDbDailyCount, getWeeklyCount as getDbWeeklyCount, incrementActivityCount, pruneOldActivity } from '../db/activity-metrics.js';
+
 /**
  * Activity Tracker - Monitors LinkedIn actions to stay within best practice limits
  * 
@@ -30,16 +32,6 @@ interface ActivityLimits {
   recommended?: number; // Safer daily limit
 }
 
-interface ActivityRecord {
-  count: number;
-  timestamps: number[]; // Unix timestamps of each action
-}
-
-interface DailyActivity {
-  date: string; // YYYY-MM-DD
-  activities: Partial<Record<ActivityType, ActivityRecord>>;
-}
-
 // LinkedIn best practice limits
 // Weekly limits are spread across 5 working days to avoid running out mid-week
 const ACTIVITY_LIMITS: Record<ActivityType, ActivityLimits> = {
@@ -70,9 +62,6 @@ const ACTIVITY_LIMITS: Record<ActivityType, ActivityLimits> = {
   },
 };
 
-// In-memory storage (in production, use Redis or database)
-let activityHistory: DailyActivity[] = [];
-
 /**
  * Get today's date as YYYY-MM-DD
  */
@@ -81,45 +70,17 @@ function getTodayKey(): string {
 }
 
 /**
- * Get or create today's activity record
- */
-function getTodayActivity(): DailyActivity {
-  const today = getTodayKey();
-  let todayRecord = activityHistory.find(a => a.date === today);
-  
-  if (!todayRecord) {
-    todayRecord = { date: today, activities: {} };
-    activityHistory.push(todayRecord);
-    
-    // Clean up old records (keep last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const cutoff = sevenDaysAgo.toISOString().split('T')[0];
-    activityHistory = activityHistory.filter(a => a.date >= cutoff);
-  }
-  
-  return todayRecord;
-}
-
-/**
  * Get activity count for today
  */
 export function getTodayCount(type: ActivityType): number {
-  const today = getTodayActivity();
-  return today.activities[type]?.count || 0;
+  return getDbDailyCount(type);
 }
 
 /**
  * Get activity count for the week (last 7 days)
  */
 export function getWeeklyCount(type: ActivityType): number {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const cutoff = sevenDaysAgo.toISOString().split('T')[0];
-  
-  return activityHistory
-    .filter(a => a.date >= cutoff)
-    .reduce((sum, day) => sum + (day.activities[type]?.count || 0), 0);
+  return getDbWeeklyCount(type);
 }
 
 /**
@@ -233,16 +194,9 @@ export function canPerformAction(type: ActivityType, useRecommended = true): {
  * Record an activity
  */
 export function recordActivity(type: ActivityType): void {
-  const today = getTodayActivity();
-  
-  if (!today.activities[type]) {
-    today.activities[type] = { count: 0, timestamps: [] };
-  }
-  
-  today.activities[type]!.count++;
-  today.activities[type]!.timestamps.push(Date.now());
-  
-  console.log(`[Activity] Recorded ${type}: ${today.activities[type]!.count} today`);
+  pruneOldActivity(14);
+  incrementActivityCount(type);
+  console.log(`[Activity] Recorded ${type}: ${getTodayCount(type)} today`);
 }
 
 /**

@@ -5,6 +5,7 @@
  */
 
 import type { App, BlockAction, ButtonAction } from '@slack/bolt';
+import type { KnownBlock } from '@slack/types';
 import { executeLinkedInAction } from '../../tools/linkedin.js';
 import { recordProfileAction } from '../../db/index.js';
 
@@ -16,6 +17,7 @@ export function registerPeopleHandlers(app: App): void {
     const data = JSON.parse(body.actions[0].value || '{}');
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
+    const baseText = data.profileName ? `Connection for ${data.profileName}` : 'Connection request';
 
     const result = await executeLinkedInAction('send_connection_request', {
       profileId: data.profileId,
@@ -31,13 +33,25 @@ export function registerPeopleHandlers(app: App): void {
     }
 
     if (messageTs && channelId) {
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: messageTs,
-        text: result.success 
-          ? `Connection request sent${data.draft ? ` with note` : ''}`
-          : `${result.error}`,
-      });
+      if (result.success) {
+        await updateMessage(client, channelId, messageTs, {
+          text: `${baseText}: sent${data.draft ? ' (with note)' : ''}`,
+          blocks: buildStatusBlocks(baseText, data.draft),
+        });
+      } else {
+        const errorText = result.error || 'Unknown error';
+        await updateMessage(client, channelId, messageTs, {
+          text: `${baseText}: failed – ${errorText}`,
+          blocks: buildRetryBlocks({
+            title: `${baseText}: failed – ${errorText}`,
+            profileUrl: data.profileUrl,
+            note: data.draft,
+            personName: data.profileName,
+            channelId,
+            messageTs,
+          }),
+        });
+      }
     }
   });
 
@@ -152,6 +166,7 @@ export function registerPeopleHandlers(app: App): void {
 
     const meta = JSON.parse(view.private_metadata);
     const note = view.state.values.note_block?.note_input?.value || '';
+    const baseText = meta.profileName ? `Connection for ${meta.profileName}` : 'Connection request';
 
     const result = await executeLinkedInAction('send_connection_request', {
       profileId: meta.profileId,
@@ -166,13 +181,25 @@ export function registerPeopleHandlers(app: App): void {
     }
 
     if (meta.messageTs && meta.channelId) {
-      await client.chat.postMessage({
-        channel: meta.channelId,
-        thread_ts: meta.messageTs,
-        text: result.success 
-          ? `Connection request sent${note ? ` with note: "${note.slice(0, 50)}${note.length > 50 ? '...' : ''}"` : ''}`
-          : `${result.error}`,
-      });
+      if (result.success) {
+        await updateMessage(client, meta.channelId, meta.messageTs, {
+          text: `${baseText}: sent${note ? ' (with note)' : ''}`,
+          blocks: buildStatusBlocks(baseText, note),
+        });
+      } else {
+        const errorText = result.error || 'Unknown error';
+        await updateMessage(client, meta.channelId, meta.messageTs, {
+          text: `${baseText}: failed – ${errorText}`,
+          blocks: buildRetryBlocks({
+            title: `${baseText}: failed – ${errorText}`,
+            profileUrl: meta.profileUrl,
+            note,
+            personName: meta.profileName,
+            channelId: meta.channelId,
+            messageTs: meta.messageTs,
+          }),
+        });
+      }
     }
   });
 
@@ -183,6 +210,7 @@ export function registerPeopleHandlers(app: App): void {
     const data = JSON.parse(body.actions[0].value || '{}');
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
+    const baseText = data.profileName ? `Connection for ${data.profileName}` : 'Connection request';
 
     const result = await executeLinkedInAction('send_connection_request', {
       profileId: data.profileId,
@@ -195,11 +223,121 @@ export function registerPeopleHandlers(app: App): void {
     }
 
     if (messageTs && channelId) {
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: messageTs,
-        text: result.success ? 'Connection request sent' : `${result.error}`,
-      });
+      if (result.success) {
+        await updateMessage(client, channelId, messageTs, {
+          text: `${baseText}: sent`,
+          blocks: buildStatusBlocks(baseText),
+        });
+      } else {
+        const errorText = result.error || 'Unknown error';
+        await updateMessage(client, channelId, messageTs, {
+          text: `${baseText}: failed – ${errorText}`,
+          blocks: buildRetryBlocks({
+            title: `${baseText}: failed – ${errorText}`,
+            profileUrl: data.profileUrl,
+            personName: data.profileName,
+            channelId,
+            messageTs,
+          }),
+        });
+      }
+    }
+  });
+
+
+  // Retry with URL (opens modal)
+  app.action<BlockAction<ButtonAction>>('discovery_retry_connection_url', async ({ ack, body, client }) => {
+    await ack();
+
+    const data = safeParseActionValue(body.actions?.[0]?.value);
+    const channelId = body.channel?.id || data.channelId || '';
+    const messageTs = body.message?.ts || data.messageTs || '';
+
+    await client.views.open({
+      trigger_id: body.trigger_id,
+      view: {
+        type: 'modal',
+        callback_id: 'discovery_retry_connection_submit',
+        private_metadata: JSON.stringify({
+          profileUrl: data.profileUrl,
+          note: data.note,
+          personName: data.personName,
+          channelId,
+          messageTs,
+        }),
+        title: { type: 'plain_text', text: 'Retry Connection' },
+        submit: { type: 'plain_text', text: 'Retry' },
+        close: { type: 'plain_text', text: 'Cancel' },
+        blocks: [
+          {
+            type: 'input',
+            block_id: 'url_block',
+            element: {
+              type: 'plain_text_input',
+              action_id: 'url_input',
+              initial_value: data.profileUrl || '',
+              placeholder: { type: 'plain_text', text: 'https://www.linkedin.com/in/...' },
+            },
+            label: { type: 'plain_text', text: 'LinkedIn profile URL' },
+          },
+          {
+            type: 'input',
+            block_id: 'note_block',
+            element: {
+              type: 'plain_text_input',
+              action_id: 'note_input',
+              multiline: true,
+              initial_value: data.note || '',
+              max_length: 300,
+              placeholder: { type: 'plain_text', text: 'Optional connection note' },
+            },
+            label: { type: 'plain_text', text: 'Note (optional)' },
+            optional: true,
+          },
+        ],
+      },
+    });
+  });
+
+  // Submit retry with URL
+  app.view('discovery_retry_connection_submit', async ({ ack, view, client }) => {
+    await ack();
+
+    const meta = JSON.parse(view.private_metadata || '{}');
+    const profileUrl = view.state.values.url_block?.url_input?.value || meta.profileUrl || '';
+    const note = view.state.values.note_block?.note_input?.value || meta.note || '';
+    const baseText = meta.personName ? `Connection for ${meta.personName}` : 'Connection request';
+
+    const result = await executeLinkedInAction('send_connection_request', {
+      profileUrl,
+      note,
+    }, note);
+
+    if (result.success && profileUrl) {
+      const publicId = profileUrl.replace('https://linkedin.com/in/', '');
+      recordProfileAction(publicId, 'approved', note);
+    }
+
+    if (meta.channelId && meta.messageTs) {
+      if (result.success) {
+        await updateMessage(client, meta.channelId, meta.messageTs, {
+          text: `${baseText}: sent${note ? ' (with note)' : ''}`,
+          blocks: buildStatusBlocks(baseText, note),
+        });
+      } else {
+        const errorText = result.error || 'Unknown error';
+        await updateMessage(client, meta.channelId, meta.messageTs, {
+          text: `${baseText}: failed – ${errorText}`,
+          blocks: buildRetryBlocks({
+            title: `${baseText}: failed – ${errorText}`,
+            profileUrl,
+            note,
+            personName: meta.personName,
+            channelId: meta.channelId,
+            messageTs: meta.messageTs,
+          }),
+        });
+      }
     }
   });
 
@@ -216,12 +354,92 @@ export function registerPeopleHandlers(app: App): void {
     }
 
     if (messageTs && channelId) {
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: messageTs,
+      await updateMessage(client, channelId, messageTs, {
         text: 'Skipped',
+        blocks: buildStatusBlocks('Skipped'),
       });
     }
   });
 }
 
+
+
+function safeParseActionValue(raw?: string): any {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function buildStatusBlocks(title: string, note?: string): KnownBlock[] {
+  const blocks: KnownBlock[] = [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: title },
+    },
+  ];
+
+  if (note) {
+    const trimmed = note.length > 150 ? `${note.slice(0, 150)}...` : note;
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `Note: ${trimmed}` }],
+    });
+  }
+
+  return blocks;
+}
+
+function buildRetryBlocks(params: {
+  title: string;
+  profileUrl?: string;
+  note?: string;
+  personName?: string;
+  channelId?: string;
+  messageTs?: string;
+}): KnownBlock[] {
+  const value = JSON.stringify({
+    profileUrl: params.profileUrl,
+    note: params.note,
+    personName: params.personName,
+    channelId: params.channelId,
+    messageTs: params.messageTs,
+  });
+
+  return [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: params.title },
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Retry with URL', emoji: false },
+          action_id: 'discovery_retry_connection_url',
+          value,
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Skip', emoji: false },
+          action_id: 'discovery_skip_person',
+          value: params.profileUrl || '',
+        },
+      ],
+    },
+  ];
+}
+
+async function updateMessage(client: any, channelId: string, ts: string, payload: { text: string; blocks?: KnownBlock[] }): Promise<void> {
+  if (!channelId || !ts) return;
+
+  await client.chat.update({
+    channel: channelId,
+    ts,
+    text: payload.text,
+    blocks: payload.blocks,
+  });
+}

@@ -27,6 +27,7 @@ import {
 import {
   discoverPeople,
   surfacePerson,
+  surfaceQueuedConnections,
   type DiscoveredProfile,
 } from './people-discovery.js';
 import { getSeenProfilesCount, getLeadStatistics } from '../db/index.js';
@@ -194,6 +195,8 @@ export class DiscoveryEngine {
     const config = getDiscoveryConfig();
     
     try {
+      await surfaceQueuedConnections(this.slackClient, config);
+
       const profiles = await discoverPeople(this.llm, config);
       
       for (const profile of profiles) {

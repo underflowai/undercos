@@ -7,12 +7,41 @@
 import type { App, BlockAction, ButtonAction } from '@slack/bolt';
 import { executeLinkedInAction } from '../../tools/linkedin.js';
 
+function parseActionValue(raw?: string): any {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+async function updateQueueStatus(
+  client: any,
+  channelId?: string,
+  messageTs?: string,
+  statusText?: string
+): Promise<void> {
+  if (!channelId || !messageTs || !statusText) return;
+  await client.chat.update({
+    channel: channelId,
+    ts: messageTs,
+    text: statusText,
+    blocks: [
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: statusText },
+      },
+    ],
+  });
+}
+
 export function registerPostHandlers(app: App): void {
   // Comment on a discovered post
   app.action<BlockAction<ButtonAction>>('discovery_comment', async ({ ack, body, client }) => {
     await ack();
 
-    const data = JSON.parse(body.actions[0].value || '{}');
+    const data = parseActionValue(body.actions[0].value);
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
 
@@ -27,6 +56,8 @@ export function registerPostHandlers(app: App): void {
           postUrl: data.postUrl,
           channelId,
           messageTs,
+          queueChannelId: data.queueChannelId,
+          queueMessageTs: data.queueMessageTs,
         }),
         title: { type: 'plain_text', text: 'Post Comment' },
         submit: { type: 'plain_text', text: 'Post Comment' },
@@ -84,13 +115,22 @@ export function registerPostHandlers(app: App): void {
           : `Failed to post comment: ${result.error}`,
       });
     }
+
+    await updateQueueStatus(
+      client,
+      metadata.queueChannelId,
+      metadata.queueMessageTs,
+      result.success
+        ? 'Post action: comment posted'
+        : `Post action failed: ${result.error}`
+    );
   });
 
   // Like a post
   app.action<BlockAction<ButtonAction>>('discovery_like', async ({ ack, body, client }) => {
     await ack();
 
-    const data = JSON.parse(body.actions[0].value || '{}');
+    const data = parseActionValue(body.actions[0].value);
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
 
@@ -106,12 +146,20 @@ export function registerPostHandlers(app: App): void {
         text: result.success ? 'Post liked' : `Failed to like: ${result.error}`,
       });
     }
+
+    await updateQueueStatus(
+      client,
+      data.queueChannelId,
+      data.queueMessageTs,
+      result.success ? 'Post action: liked' : `Post action failed: ${result.error}`
+    );
   });
 
   // Skip a post
   app.action<BlockAction<ButtonAction>>('discovery_skip', async ({ ack, body, client }) => {
     await ack();
 
+    const data = parseActionValue(body.actions[0].value);
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
 
@@ -128,6 +176,8 @@ export function registerPostHandlers(app: App): void {
         ],
       });
     }
+
+    await updateQueueStatus(client, data.queueChannelId, data.queueMessageTs, 'Post action: skipped');
   });
 }
 

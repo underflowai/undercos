@@ -14,6 +14,8 @@ import {
 } from '../tools/unipile-sdk.js';
 
 // Type definition for profile
+import { enqueueSuggestion, getSurfaceCount, incrementSurfaceCount, dequeueSuggestionsForDate } from '../db/connection-queue.js';
+import { postConnectionMessage } from '../slack/connection-thread.js';
 interface UnipileProfile {
   id: string;
   provider_id?: string;
@@ -502,6 +504,55 @@ export async function discoverPeople(
 /**
  * Surface a person in Slack - formatted like a message from a human chief of staff
  */
+
+const ADHOC_SURFACE_LIMIT = 20; // daily cap for ad-hoc suggestions; meeting-derived are uncapped
+
+function getDateKey(date: Date = new Date()): string {
+  return date.toISOString().split('T')[0];
+}
+
+function buildConnectionBlocks(messageText: string, profile: DiscoveredProfile, draftNote: string): KnownBlock[] {
+  return [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: messageText,
+      },
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Approve', emoji: false },
+          style: 'primary',
+          action_id: 'discovery_connect_approve',
+          value: JSON.stringify({ profileId: profile.provider_id, profileUrl: profile.profile_url, profileName: profile.name, draft: draftNote }),
+        },
+        ...(profile.profile_url ? [{
+          type: 'button' as const,
+          text: { type: 'plain_text' as const, text: 'View Profile', emoji: false },
+          url: profile.profile_url,
+          action_id: 'discovery_view_profile',
+        }] : []),
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Edit Note', emoji: false },
+          action_id: 'discovery_connect',
+          value: JSON.stringify({ profileId: profile.provider_id, profileUrl: profile.profile_url, profileName: profile.name, draft: draftNote }),
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Skip', emoji: false },
+          action_id: 'discovery_skip_person',
+          value: profile.id,
+        },
+      ],
+    },
+  ];
+}
+
 export async function surfacePerson(
   slackClient: WebClient,
   llm: ResponsesAPIClient,
@@ -553,64 +604,79 @@ export async function surfacePerson(
     messageText += `\n\n_No note recommended - sometimes that converts better_`;
   }
 
-  const blocks: KnownBlock[] = [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: messageText,
+  const blocks = buildConnectionBlocks(messageText, profile, draftNote);
+
+  const todayCount = getSurfaceCount('ad_hoc');
+  if (todayCount >= ADHOC_SURFACE_LIMIT) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const scheduledFor = getDateKey(tomorrow);
+    enqueueSuggestion({
+      source: 'ad_hoc',
+      scheduledFor,
+      payload: {
+        profileName: profile.name,
+        profileUrl: profile.profile_url,
+        providerId: profile.provider_id,
+        draftNote,
+        brief,
+        researchSummary,
+        blocks,
+        text: profile.name,
       },
-    },
-    {
-      type: 'actions',
-      elements: [
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: 'Approve', emoji: false },
-          style: 'primary',
-          action_id: 'discovery_connect_approve',
-          value: JSON.stringify({ profileId: profile.provider_id, profileUrl: profile.profile_url, profileName: profile.name, draft: draftNote }),
-        },
-        ...(profile.profile_url ? [{
-          type: 'button' as const,
-          text: { type: 'plain_text' as const, text: 'View Profile', emoji: false },
-          url: profile.profile_url,
-          action_id: 'discovery_view_profile',
-        }] : []),
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: 'Edit Note', emoji: false },
-          action_id: 'discovery_connect',
-          value: JSON.stringify({ profileId: profile.provider_id, profileUrl: profile.profile_url, profileName: profile.name, draft: draftNote }),
-        },
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: 'Skip', emoji: false },
-          action_id: 'discovery_skip_person',
-          value: profile.id,
-        },
-      ],
-    },
-  ];
+      priority: 0,
+    });
+    console.log(`[PeopleDiscovery] Surface cap reached (${todayCount}/${ADHOC_SURFACE_LIMIT}); queued ${profile.name} for ${scheduledFor}`);
+    return;
+  }
 
-  // Add to database when surfaced (with draft note and source query for learning)
-  addSurfacedProfile({
-    id: profile.id,
-    provider_id: profile.provider_id,
-    name: profile.name,
-    headline: profile.headline,
-    company: profile.company,
-    profile_url: profile.profile_url,
-    connection_note: draftNote || undefined,
-    source: 'discovery',
-    search_query: profile.search_query, // Track which query found this person
-  });
+  incrementSurfaceCount('ad_hoc');
+  await postConnectionMessage(slackClient, config.slack.channelId, { text: profile.name, blocks });
+}
 
-  await slackClient.chat.postMessage({
-    channel: config.slack.channelId,
-    text: profile.name,
-    blocks,
-  });
+
+/**
+ * Drain queued ad-hoc suggestions for today (respecting surface cap)
+ */
+export async function surfaceQueuedConnections(
+  slackClient: WebClient,
+  config: DiscoveryConfig
+): Promise<void> {
+  const today = new Date();
+  const todayKey = getDateKey(today);
+  let remaining = Math.max(0, ADHOC_SURFACE_LIMIT - getSurfaceCount('ad_hoc'));
+  if (remaining <= 0) return;
+
+  const queued = dequeueSuggestionsForDate(todayKey, remaining);
+  for (const item of queued) {
+    const blocks = (item.blocks as KnownBlock[] | undefined) || buildConnectionBlocks(
+      `*${item.profileName}*${item.brief ? `
+${item.brief}` : ''}${item.researchSummary ? `
+_Inroad: ${item.researchSummary}_` : ''}${item.draftNote ? `
+
+Draft:
+>${item.draftNote}` : ''}`,
+      {
+        id: item.providerId || item.profileUrl || item.profileName,
+        provider_id: item.providerId || '',
+        name: item.profileName,
+        headline: '',
+        profile_url: item.profileUrl,
+        company: '',
+        is_connection: false,
+      } as DiscoveredProfile,
+      item.draftNote || ''
+    );
+
+    incrementSurfaceCount('ad_hoc');
+    await postConnectionMessage(slackClient, config.slack.channelId, {
+      text: item.text || item.profileName,
+      blocks,
+    });
+
+    remaining -= 1;
+    if (remaining <= 0) break;
+  }
 }
 
 // ============================================

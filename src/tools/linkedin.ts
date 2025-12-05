@@ -178,6 +178,13 @@ export const linkedinSchemas = {
     note: z.string().max(300).optional().describe('Optional connection note'),
   }),
 
+  retryConnectionWithUrl: z.object({
+    profileUrl: z.string().describe('LinkedIn profile URL'),
+    note: z.string().max(300).optional().describe('Optional connection note'),
+    messageTs: z.string().optional(),
+    channelId: z.string().optional(),
+  }),
+
   sendDM: z.object({
     profileUrl: z.string().describe('LinkedIn profile URL or user ID'),
     message: z.string().max(8000).describe('The message to send'),
@@ -843,6 +850,29 @@ export async function executeLinkedInAction(
       return { success: true, message: '[Mock] Connection request sent!' };
     }
     
+
+    case 'retry_connection_with_url': {
+      const profileUrl = args.profileUrl as string;
+      const note = editedDraft || (args.note as string | undefined);
+      const resolution = await resolveProviderId({
+        profileUrl,
+      });
+
+      if (resolution.error) {
+        return { success: false, error: resolution.error };
+      }
+      if (!resolution.providerId) {
+        return { success: false, error: 'Unable to resolve profile ID' };
+      }
+
+      return executeLinkedInAction('send_connection_request', {
+        profileId: resolution.providerId,
+        profileUrl: resolution.profileUrl,
+        profileName: resolution.resolvedName,
+        note,
+      }, note);
+    }
+
     case 'send_dm': {
       const profileId = args.profileId as string;
       const message = editedDraft || (args.message as string);
