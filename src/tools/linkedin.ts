@@ -21,6 +21,7 @@ import {
   type ActivityType,
 } from '../discovery/activity-tracker.js';
 import { trackSentInvitation } from '../tracking/invitations.js';
+import { logAction, updateActionStatus, getLatestAction } from '../db/actions-log.js';
 
 // Type definitions for LinkedIn data
 interface UnipilePost {
@@ -693,20 +694,31 @@ export async function executeLinkedInAction(
       if (!profileId && !profileUrl) {
         return { success: false, error: 'No profile identifier provided' };
       }
-      // Derive identifier from URL if needed
       if (!profileId && profileUrl) {
         profileId = profileUrl.replace('https://linkedin.com/in/', '');
       }
+
+      // Idempotency: if we already have a succeeded action for this provider_id, return it
+      const existing = profileId ? getLatestAction('send_connection_request', 'linkedin_profile', profileId) : null;
+      if (existing?.status === 'succeeded') {
+        return { success: true, message: '✅ Connection already sent' };
+      }
+      
+      const actionId = logAction({
+        actionType: 'send_connection_request',
+        entityType: 'linkedin_profile',
+        entityId: profileId || profileUrl || 'unknown',
+        status: 'pending',
+        data: { profileUrl, note },
+      });
       
       if (isUnipileConfigured()) {
         try {
-          // LinkedIn invitations require the internal provider_id (format: ACoAAA...)
           const isProviderId = profileId?.startsWith('ACoAAA') || profileId?.startsWith('ACwAAA') || profileId?.startsWith('AEMAA');
           
           if (!isProviderId) {
             console.log(`[LinkedIn] profileId "${profileId}" is not a provider_id, fetching profile first...`);
             
-            // Try to get the profile to retrieve the real provider_id
             const identifier = profileId || profileUrl?.replace('https://linkedin.com/in/', '');
             if (identifier) {
               try {
@@ -717,21 +729,25 @@ export async function executeLinkedInAction(
                   profileId = (profile as any).provider_id;
                 } else {
                   console.error('[LinkedIn] Profile fetch did not return provider_id');
+                  updateActionStatus(actionId, 'failed', { errorMessage: 'Could not resolve LinkedIn provider ID. Try again.' });
                   return { success: false, error: 'Could not resolve LinkedIn provider ID. Try again.' };
                 }
               } catch (profileError) {
                 console.error('[LinkedIn] Failed to fetch profile:', profileError);
+                updateActionStatus(actionId, 'failed', { errorMessage: 'Could not resolve LinkedIn provider ID. The profile may not be accessible.' });
                 return { 
                   success: false, 
                   error: 'Could not resolve LinkedIn provider ID. The profile may not be accessible.' 
                 };
               }
             } else {
+              updateActionStatus(actionId, 'failed', { errorMessage: 'No valid profile identifier provided' });
               return { success: false, error: 'No valid profile identifier provided' };
             }
           }
           
           if (!profileId) {
+            updateActionStatus(actionId, 'failed', { errorMessage: 'Unable to resolve profile ID' });
             return { success: false, error: 'Unable to resolve profile ID' };
           }
           
@@ -742,7 +758,6 @@ export async function executeLinkedInAction(
           if (response.success) {
             recordActivity('invitation');
             
-            // Track the invitation for real-time acceptance detection
             if (note) {
               trackSentInvitation({
                 providerId: profileId,
@@ -752,19 +767,24 @@ export async function executeLinkedInAction(
               });
             }
             
+            updateActionStatus(actionId, 'succeeded', { data: { providerId: profileId, note } });
             return { success: true, message: '✅ Connection request sent via Unipile!' };
           } else {
+            updateActionStatus(actionId, 'failed', { errorMessage: response.error || 'Failed to send connection' });
             return { success: false, error: response.error || 'Failed to send connection' };
           }
         } catch (error) {
+          const msg = error instanceof Error ? error.message : 'Unknown error';
+          updateActionStatus(actionId, 'failed', { errorMessage: msg });
           return { 
             success: false, 
-            error: `Unipile error: ${error instanceof Error ? error.message : 'Unknown error'}` 
+            error: `Unipile error: ${msg}` 
           };
         }
       }
       
       recordActivity('invitation');
+      updateActionStatus(actionId, 'succeeded', { data: { profileId, note, mode: 'mock' } });
       console.log(`[Mock] Sent connection to ${profileId}${note ? ` with note: ${note}` : ''}`);
       return { success: true, message: '[Mock] Connection request sent!' };
     }

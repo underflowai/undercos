@@ -18,6 +18,7 @@ import {
   getEmailFolders as getEmailFoldersSdk,
   createEmailDraft,
 } from './unipile-sdk.js';
+import { logAction, updateActionStatus } from '../db/actions-log.js';
 
 // Type definition for email data
 interface UnipileEmail {
@@ -367,6 +368,15 @@ Underflow</p>
       };
     }
 
+    const entityId = `${args.to.join(',')}|${args.subject}`;
+    const actionId = logAction({
+      actionType: 'create_draft',
+      entityType: 'email_draft',
+      entityId,
+      status: 'pending',
+      data: { to: args.to, subject: args.subject },
+    });
+
     try {
       const result = await createEmailDraft({
         to: args.to,
@@ -375,6 +385,7 @@ Underflow</p>
       });
 
       if (result.success) {
+        updateActionStatus(actionId, 'succeeded', { data: result.data });
         return {
           success: true,
           emailId: (result.data as any)?.id,
@@ -383,14 +394,17 @@ Underflow</p>
         };
       }
 
+      updateActionStatus(actionId, 'failed', { errorMessage: result.error || 'Failed to create draft' });
       return {
         success: false,
         error: result.error || 'Failed to create draft',
       };
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      updateActionStatus(actionId, 'failed', { errorMessage: msg });
       return {
         success: false,
-        error: `Failed to create draft: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: `Failed to create draft: ${msg}`,
       };
     }
   },
