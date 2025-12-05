@@ -11,6 +11,7 @@ import { registerWebhookRoutes, setupWebhooks, setSlackClient } from './webhooks
 import { registerLinkedInMessagingHandlers } from './slack/linkedin-messaging.js';
 import { env } from './config/env.js';
 import { MODEL_CONFIG } from './config/models.js';
+import { clearDataDir } from './utils/clear-data.js';
 
 async function main() {
   console.log('🚀 Starting LinkedIn AI Bot...\n');
@@ -47,6 +48,9 @@ async function main() {
   // Create Slack app
   console.log('[Init] Creating Slack app');
   const slackApp = createSlackApp();
+
+  // Optional: clear data dir on start (for ephemeral environments)
+  clearDataDir();
 
   // Register handlers
   registerHandlers(slackApp, router);
