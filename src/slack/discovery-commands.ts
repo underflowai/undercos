@@ -2,7 +2,7 @@ import type { App } from '@slack/bolt';
 import type { DiscoveryEngine } from '../discovery/engine.js';
 
 export function registerDiscoveryCommands(app: App, engine: DiscoveryEngine | null): void {
-  app.command('/run_posts', async ({ ack, respond }) => {
+  app.command('/posts', async ({ ack, respond }) => {
     await ack();
 
     if (!engine) {
@@ -19,7 +19,7 @@ export function registerDiscoveryCommands(app: App, engine: DiscoveryEngine | nu
     }
   });
 
-  app.command('/run_connections', async ({ ack, respond }) => {
+  app.command('/connect', async ({ ack, respond }) => {
     await ack();
 
     if (!engine) {
