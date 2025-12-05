@@ -5,12 +5,13 @@
 import type { WebClient } from '@slack/web-api';
 import type { KnownBlock } from '@slack/bolt';
 import { ResponsesAPIClient } from '../llm/responses.js';
-import { 
+import {
   isUnipileConfigured,
   getActiveLinkedinAccountId,
   searchLinkedIn,
   getProfile,
   getLocationIds,
+  hasPendingInvitation
 } from '../tools/unipile-sdk.js';
 
 // Type definition for profile
@@ -591,6 +592,10 @@ export async function surfacePerson(
     }
     const isConnected = (fullProfile as any)?.is_connection || profile.is_connection;
     if (isConnected) {
+      return;
+    }
+    const pending = await hasPendingInvitation(profile.provider_id);
+    if (pending) {
       return;
     }
   }

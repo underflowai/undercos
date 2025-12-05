@@ -188,6 +188,11 @@ export async function listInvitations() {
   return response.items || [];
 }
 
+export async function hasPendingInvitation(providerId: string): Promise<boolean> {
+  const items = await listInvitations();
+  return items.some((inv: any) => inv.provider_id === providerId && (inv.status === 'PENDING' || inv.status === 'pending'));
+}
+
 /**
  * Get posts from a profile
  */
