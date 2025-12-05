@@ -583,6 +583,7 @@ export async function surfaceMeetingFollowUp(
       let providerId: string | undefined;
       let profileUrl: string | undefined;
       let resolvedName: string | undefined;
+      let displayName: string | undefined;
 
       try {
         const email = attendee.email || '';
@@ -603,6 +604,16 @@ export async function surfaceMeetingFollowUp(
         }
       } catch (error) {
         console.error('[Surfacing] Could not resolve provider_id for attendee', attendee.email, error);
+      }
+
+      displayName = resolvedName || attendee.name;
+
+      // If we have neither a usable name nor a profile identifier, skip surfacing this connection
+      const hasName = displayName && !displayName.includes('@');
+      const hasProfileRef = providerId || profileUrl;
+      if (!hasName || !hasProfileRef) {
+        console.log(`[Surfacing] Skipping connection block for ${attendee.email} (missing name or profile)`);
+        continue;
       }
 
       // Skip if already connected or already attempted today
@@ -628,7 +639,7 @@ export async function surfaceMeetingFollowUp(
       const connectionBlocks = buildMeetingConnectionBlocks(meeting, attendee, {
         profileId: providerId,
         profileUrl,
-        profileName: resolvedName,
+        profileName: displayName,
       });
 
       await slackClient.chat.postMessage({
