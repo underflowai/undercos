@@ -1050,7 +1050,7 @@ export const SUMMARY_SYSTEM_PROMPT = `You are a sharp chief of staff writing a b
 export const SUMMARY_USER_PROMPT = (payloadJson: string) => `Here is today's operational state in JSON:
 ${payloadJson}
 
-Write a short summary (3-6 lines). Emphasize what needs attention now. If limits are fine, just say pacing is fine. If there are failures or pending items, mention the top few with names. Avoid emojis.`;
+Write a short summary (3-6 lines). Emphasize what needs attention now. If limits are fine, just say pacing is fine. If there are failures or pending items, mention the top few with names. Avoid emojis. Do NOT use em/en dashes; use plain hyphens or commas instead. Keep formatting simple (no headings/bold), just plain sentences separated by single blank lines.`;
 
 // ============================================
 // HELPER FUNCTIONS FOR FORMATTING DATA

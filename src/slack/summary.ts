@@ -105,7 +105,11 @@ export async function postDailySummary(
   date: Date = new Date()
 ): Promise<void> {
   const snapshot = buildSnapshot(date);
-  const summaryText = await draftCosStyleSummary(llm, snapshot);
+  const summaryRaw = await draftCosStyleSummary(llm, snapshot);
+  const summaryText = summaryRaw
+    .replace(/[–—]/g, '-') // normalize dashes
+    .replace(/\n{3,}/g, '\n\n') // collapse excess blank lines
+    .trim();
 
   const blocks: KnownBlock[] = [
     {
