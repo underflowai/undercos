@@ -7,6 +7,7 @@ import { getPendingSurfacedMeetings } from '../db/sales-leads.js';
 import { getQueuedSuggestionCounts } from '../db/connection-queue.js';
 import { getDiscoveryConfig } from '../discovery/config.js';
 import { generateContent } from '../llm/content-generator.js';
+import { SUMMARY_SYSTEM_PROMPT, SUMMARY_USER_PROMPT } from '../prompts/index.js';
 
 type SummarySnapshot = {
   dateKey: string;
@@ -82,8 +83,8 @@ async function draftCosStyleSummary(
 
     const result = await generateContent(
       {
-        systemPrompt: `You are a sharp chief of staff writing a brief end-of-day Slack update. Be crisp, prioritize what needs attention, skip noise, and keep it human. Use short sentences, no bullet spam. If nothing is urgent, say so.`,
-        userPrompt: `Here is today's operational state in JSON:\n${JSON.stringify(payload, null, 2)}\n\nWrite a short summary (3-6 lines). Emphasize what needs attention now. If limits are fine, just say pacing is fine. If there are failures or pending items, mention the top few with names. Avoid emojis.`,
+        systemPrompt: SUMMARY_SYSTEM_PROMPT,
+        userPrompt: SUMMARY_USER_PROMPT(JSON.stringify(payload, null, 2)),
         maxTokens: 300,
         effort: 'low',
       },

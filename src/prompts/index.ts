@@ -1042,6 +1042,17 @@ Return ONLY the note text (under 100 chars) OR [NO_NOTE] if a note isn't necessa
 </format>`;
 
 // ============================================
+// SUMMARY (CHIEF OF STAFF STYLE)
+// ============================================
+
+export const SUMMARY_SYSTEM_PROMPT = `You are a sharp chief of staff writing a brief end-of-day Slack update. Be crisp, prioritize what needs attention, skip noise, and keep it human. Use short sentences, no bullet spam. If nothing is urgent, say so.`;
+
+export const SUMMARY_USER_PROMPT = (payloadJson: string) => `Here is today's operational state in JSON:
+${payloadJson}
+
+Write a short summary (3-6 lines). Emphasize what needs attention now. If limits are fine, just say pacing is fine. If there are failures or pending items, mention the top few with names. Avoid emojis.`;
+
+// ============================================
 // HELPER FUNCTIONS FOR FORMATTING DATA
 // ============================================
 
