@@ -34,11 +34,27 @@ export async function resolveProviderId(opts: {
   let { profileId, profileUrl } = opts;
 
   const isProviderId = (id?: string) => id?.startsWith('ACoAAA') || id?.startsWith('ACwAAA') || id?.startsWith('AEMAA');
+
+  const normalizeIdentifier = (id?: string, url?: string): string | undefined => {
+    let val = id || url;
+    if (!val) return undefined;
+    val = val.trim();
+    val = val.replace(/^https?:\/\//, '');
+    val = val.replace(/^www\.linkedin\.com\/in\//, '').replace(/^linkedin\.com\/in\//, '');
+    val = val.split(/[?#]/)[0];
+    val = val.replace(/\/+$/, '');
+    const parts = val.split('/');
+    if (parts.length > 1) {
+      val = parts[parts.length - 1];
+    }
+    return val;
+  };
+
   if (isProviderId(profileId)) {
     return { providerId: profileId, profileUrl, resolvedName: opts.profileName };
   }
 
-  const identifier = profileId || profileUrl?.replace('https://linkedin.com/in/', '');
+  const identifier = normalizeIdentifier(profileId, profileUrl);
   if (identifier) {
     try {
       const profile = await getProfile(identifier);
@@ -49,10 +65,13 @@ export async function resolveProviderId(opts: {
           resolvedName: (profile as any).name || opts.profileName,
         };
       }
-    } catch {}
+    } catch {
+      // continue to search fallback
+    }
   }
 
-  const keywords = [opts.profileName, opts.companyHint].filter(Boolean).join(' ').trim();
+  const keywordSource = opts.profileName || (identifier ? identifier.replace(/-/g, ' ') : '');
+  const keywords = [keywordSource, opts.companyHint].filter(Boolean).join(' ').trim();
   if (!keywords) {
     return { error: 'No valid profile identifier provided' };
   }
@@ -69,7 +88,7 @@ export async function resolveProviderId(opts: {
       return { error: 'Could not resolve LinkedIn provider ID. The profile may not be accessible.' };
     }
 
-    const searchName = opts.profileName?.toLowerCase() || '';
+    const searchName = (opts.profileName || '').toLowerCase();
     const match =
       searchResults.items.find((p: any) => p.name?.toLowerCase().includes(searchName)) ||
       searchResults.items[0];
@@ -91,7 +110,6 @@ export async function resolveProviderId(opts: {
     };
   }
 }
-
 
 interface UnipilePost {
   id: string;
