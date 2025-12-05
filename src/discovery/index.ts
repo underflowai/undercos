@@ -11,7 +11,7 @@ export * from './activity-tracker.js';
 export * from './engine.js';
 
 // Slack handlers for discovery actions
-export * from './handlers.js';
+export * from './handlers/index.js';
 
 // Individual discovery modules
 export * from './post-discovery.js';

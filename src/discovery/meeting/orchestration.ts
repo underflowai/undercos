@@ -153,7 +153,7 @@ function buildMeetingConnectionBlocks(
           text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'discovery_skip_person',
           value: JSON.stringify({
-            profileId: attendee.providerId || attendee.email || attendee.name || '',
+            profileId: attendee.email || attendee.name || '',
             profileUrl: opts.profileUrl,
             profileName: attendee.name || attendee.email || 'Unknown',
           }),

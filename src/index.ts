@@ -5,7 +5,7 @@ import { createResponsesClient } from './llm/index.js';
 import { createResponsesRouter } from './agent/index.js';
 import { isUnipileConfigured } from './tools/index.js';
 import { DiscoveryEngine, updateDiscoveryConfig } from './discovery/index.js';
-import { registerDiscoveryHandlers } from './discovery/handlers.js';
+import { registerDiscoveryHandlers } from './discovery/handlers/index.js';
 import { registerWebhookRoutes, setupWebhooks, setSlackClient } from './webhooks/index.js';
 import { registerLinkedInMessagingHandlers } from './slack/linkedin-messaging.js';
 import { env } from './config/env.js';
