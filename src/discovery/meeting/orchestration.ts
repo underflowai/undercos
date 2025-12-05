@@ -92,6 +92,14 @@ Duration: ${Math.round((meeting.endTime.getTime() - meeting.startTime.getTime())
 }
 
 // =============================================================================
+
+function buildMeetingKey(meeting: EndedMeeting, primaryEmail: string): string {
+  const start = meeting.startTime?.toISOString?.() || meeting.startTime?.toString?.() || '';
+  const end = meeting.endTime?.toISOString?.() || meeting.endTime?.toString?.() || '';
+  const normalizedEmail = primaryEmail.toLowerCase();
+  return `${normalizedEmail}|${start}|${end}|${meeting.title || ''}`;
+}
+
 // LINKEDIN CONNECTION
 // =============================================================================
 
@@ -439,8 +447,10 @@ export async function surfaceMeetingFollowUp(
     return;
   }
 
+  const meetingKey = buildMeetingKey(meeting, primaryRecipient.email);
+
   // Dedupe: skip if already surfaced/processed
-  if (hasMeetingBeenProcessed(meeting.id)) {
+  if (hasMeetingBeenProcessed(meetingKey)) {
     console.log(`[Surfacing] Skipping already-processed meeting: ${meeting.title}`);
     return;
   }
@@ -451,13 +461,13 @@ export async function surfaceMeetingFollowUp(
   if (classification.classification !== 'sales') {
     console.log(`[Surfacing] Skipping "${meeting.title}": ${classification.reason}`);
     markMeetingSurfaced({
-      meetingId: meeting.id,
+      meetingId: meetingKey,
       recipientEmail: primaryRecipient.email,
       recipientName: primaryRecipient.name,
       meetingTitle: meeting.title,
     });
     const { markMeetingSkipped } = await import('../../db/sales-leads.js');
-    markMeetingSkipped(meeting.id);
+    markMeetingSkipped(meetingKey);
     console.log(`[Surfacing] Skipped reason: ${classification.reason}`);
     return;
   }
@@ -482,7 +492,7 @@ export async function surfaceMeetingFollowUp(
 
   // Mark as surfaced
   markMeetingSurfaced({
-    meetingId: meeting.id,
+    meetingId: meetingKey,
     recipientEmail: primaryRecipient.email,
     recipientName: primaryRecipient.name,
     meetingTitle: meeting.title,
@@ -525,7 +535,7 @@ export async function surfaceMeetingFollowUp(
           style: 'primary',
           action_id: 'meeting_followup_send',
           value: JSON.stringify({
-            meetingId: meeting.id,
+            meetingId: meetingKey,
             to: draft.to,
             subject: draft.subject,
             body: draft.body,
@@ -537,7 +547,7 @@ export async function surfaceMeetingFollowUp(
           text: { type: 'plain_text', text: 'Edit', emoji: false },
           action_id: 'meeting_followup_edit',
           value: JSON.stringify({
-            meetingId: meeting.id,
+            meetingId: meetingKey,
             to: draft.to,
             subject: draft.subject,
             body: draft.body,
@@ -547,7 +557,7 @@ export async function surfaceMeetingFollowUp(
           type: 'button',
           text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'meeting_followup_skip',
-          value: meeting.id,
+          value: meetingKey,
         },
       ],
     },
@@ -673,6 +683,7 @@ export async function runHistoricalBackfill(
       const primaryRecipient = meeting.attendees.find(a => a.isExternal);
       
       if (primaryRecipient) {
+        const meetingKey = buildMeetingKey(meeting, primaryRecipient.email);
         const { hasEmailed, lastSubject } = await hasRecentlyEmailedRecipient(
           primaryRecipient.email,
           meeting.endTime
@@ -682,13 +693,13 @@ export async function runHistoricalBackfill(
           console.log(`[Backfill] Skipping "${meeting.title}" - already followed up ("${lastSubject}")`);
           skipped++;
           markMeetingSurfaced({
-            meetingId: meeting.id,
+            meetingId: meetingKey,
             recipientEmail: primaryRecipient.email,
             recipientName: primaryRecipient.name,
             meetingTitle: meeting.title,
           });
           const { markMeetingSent } = await import('../../db/sales-leads.js');
-          markMeetingSent(meeting.id);
+          markMeetingSent(meetingKey);
           continue;
         }
       }
