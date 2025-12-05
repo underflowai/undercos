@@ -583,16 +583,12 @@ export async function surfaceMeetingFollowUp(
           continue;
         }
         try {
-          const { getProfile, hasPendingInvitation } = await import('../../tools/unipile-sdk.js');
+          const { getProfile } = await import('../../tools/unipile-sdk.js');
           const profile = await getProfile(providerId) as any;
           if (!profileUrl && profile?.profile_url) {
             profileUrl = profile.profile_url;
           }
           if (profile?.is_connection) {
-            continue;
-          }
-          const pending = await hasPendingInvitation(providerId);
-          if (pending) {
             continue;
           }
         } catch (err) {

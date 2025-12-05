@@ -16,8 +16,6 @@ import { env } from '../config/env.js';
 
 let client: UnipileClient | null = null;
 
-let loggedInvitationSample = false;
-
 export function getUnipileSDK(): UnipileClient | null {
   if (!env.UNIPILE_ACCESS_TOKEN || !env.UNIPILE_DSN) {
     return null;
@@ -191,13 +189,8 @@ export async function listInvitations() {
 }
 
 export async function hasPendingInvitation(providerId: string): Promise<boolean> {
-  const items = await listInvitations();
-  if (!loggedInvitationSample && items.length > 0) {
-    const sample = items.slice(0, 1).map((inv: any) => ({ id: inv.id, provider_id: inv.provider_id, status: inv.status }));
-    console.log('[UnipileSDK] Invitation sample', sample);
-    loggedInvitationSample = true;
-  }
-  return items.some((inv: any) => inv.provider_id === providerId && (inv.status === 'PENDING' || inv.status === 'pending'));
+  // Unipile getAllInvitationsSent does not currently return provider_id/status reliably; always return false for now.
+  return false;
 }
 
 /**
