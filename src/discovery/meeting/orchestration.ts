@@ -77,7 +77,7 @@ Duration: ${Math.round((meeting.endTime.getTime() - meeting.startTime.getTime())
       return {
         classification: parsed.classification || 'skip',
         reason: parsed.reason || 'Unknown',
-        priority: parsed.priority || 'low',
+        priority: parsed.priority === 'high' ? 'high' : parsed.priority === 'medium' ? 'medium' : 'low',
       };
     }
     
@@ -457,7 +457,7 @@ export async function surfaceMeetingFollowUp(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*To:* ${primaryRecipient.email}\n*Priority:* ${classification.priority === 'high' ? 'High High' : 'Normal Normal'}`,
+        text: `*To:* ${primaryRecipient.email}\n*Priority:* ${classification.priority}`,
       },
     },
     { type: 'divider' },

@@ -90,7 +90,7 @@ export interface EmailHistoryContext {
 export interface MeetingClassification {
   classification: 'sales' | 'skip';
   reason: string;
-  priority: 'high' | 'low';
+  priority: 'high' | 'medium' | 'low';
 }
 
 // =============================================================================
