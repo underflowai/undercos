@@ -130,7 +130,7 @@ export function registerSummaryCommand(app: App, llm: ResponsesAPIClient, channe
     await ack();
 
     await respond({
-      text: `Posting summary to <#${channelId}>`,
+      text: 'Pulling together the day...',
       response_type: 'ephemeral',
     });
 
