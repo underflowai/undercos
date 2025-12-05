@@ -16,6 +16,7 @@ import { ResponsesRouter } from '../../agent/responses-router.js';
 import {
   createLead,
   markMeetingSurfaced,
+  hasMeetingBeenProcessed,
   type CreateLeadParams,
 } from '../../db/sales-leads.js';
 import {
@@ -435,6 +436,12 @@ export async function surfaceMeetingFollowUp(
   const primaryRecipient = meeting.attendees.find(a => a.isExternal);
   if (!primaryRecipient) {
     console.log(`[Surfacing] No external attendees for "${meeting.title}"`);
+    return;
+  }
+
+  // Dedupe: skip if already surfaced/processed
+  if (hasMeetingBeenProcessed(meeting.id)) {
+    console.log(`[Surfacing] Skipping already-processed meeting: ${meeting.title}`);
     return;
   }
 
