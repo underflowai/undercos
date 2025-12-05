@@ -304,50 +304,7 @@ async function handleMessageReceived(event: WebhookEvent, channelId: string): Pr
  */
 async function handleMailReceived(event: WebhookEvent, channelId: string): Promise<void> {
   console.log(`[Webhook] Email received: ${event.subject} (from: ${event.from})`);
-  
-  // Check if this is a reply from a tracked lead
-  if (event.thread_id) {
-    try {
-      const { getLeadsByThreads, markLeadResponded } = await import('../db/sales-leads.js');
-      const leads = getLeadsByThreads([event.thread_id]);
-      
-      if (leads.length > 0) {
-        const lead = leads[0];
-        console.log(`[Webhook] Reply received from lead: ${lead.name || lead.email}`);
-        
-        // Mark lead as responded
-        markLeadResponded(lead.id, 'email');
-        
-        // Notify in Slack
-        if (slackClient) {
-          await slackClient.chat.postMessage({
-            channel: channelId,
-            text: `${lead.name || lead.email} replied to your email`,
-            blocks: [
-              {
-                type: 'section',
-                text: {
-                  type: 'mrkdwn',
-                  text: `*${lead.name || lead.email}* replied to your email`,
-                },
-              },
-              {
-                type: 'context',
-                elements: [
-                  {
-                    type: 'mrkdwn',
-                    text: `Subject: "${event.subject || 'Unknown'}"${lead.company ? ` · ${lead.company}` : ''}`,
-                  },
-                ],
-              },
-            ],
-          });
-        }
-      }
-    } catch (error) {
-      console.error('[Webhook] Failed to process email reply:', error);
-    }
-  }
+  // Lead tracking removed; no further action.
 }
 
 /**
@@ -356,51 +313,7 @@ async function handleMailReceived(event: WebhookEvent, channelId: string): Promi
  */
 async function handleEmailOpened(event: WebhookEvent, channelId: string): Promise<void> {
   console.log(`[Webhook] Email opened: ${event.subject} (thread: ${event.thread_id})`);
-  
-  if (!event.thread_id) return;
-  
-  try {
-    const { getLeadByThread, recordEmailOpen } = await import('../db/sales-leads.js');
-    const lead = getLeadByThread(event.thread_id);
-    
-    if (lead) {
-      const isFirstOpen = lead.open_count === 0;
-      
-      // Record the open
-      recordEmailOpen(lead.id);
-      
-      // Only notify Slack on first open to avoid noise
-      if (isFirstOpen && slackClient) {
-        await slackClient.chat.postMessage({
-          channel: channelId,
-          text: `${lead.name || lead.email} opened your email`,
-          blocks: [
-            {
-              type: 'section',
-              text: {
-                type: 'mrkdwn',
-                text: `*${lead.name || lead.email}* opened your email`,
-              },
-            },
-            {
-              type: 'context',
-              elements: [
-                {
-                  type: 'mrkdwn',
-                  text: `${lead.company ? `${lead.company} • ` : ''}${event.subject ? `"${event.subject}"` : 'Follow-up'}${lead.email_followup_count > 0 ? ` • Follow-up #${lead.email_followup_count}` : ''}`,
-                },
-              ],
-            },
-          ],
-        });
-        console.log(`[Webhook] Notified Slack of first email open from ${lead.email}`);
-      } else if (!isFirstOpen) {
-        console.log(`[Webhook] Email opened again (${lead.open_count + 1} times) by ${lead.email}`);
-      }
-    }
-  } catch (error) {
-    console.error('[Webhook] Failed to process email open:', error);
-  }
+  // Lead tracking removed; no further action.
 }
 
 /**
@@ -409,44 +322,7 @@ async function handleEmailOpened(event: WebhookEvent, channelId: string): Promis
  */
 async function handleEmailLinkClicked(event: WebhookEvent, channelId: string): Promise<void> {
   console.log(`[Webhook] Email link clicked: ${event.subject} (thread: ${event.thread_id})`);
-  
-  if (!event.thread_id) return;
-  
-  try {
-    const { getLeadByThread, recordEmailOpen } = await import('../db/sales-leads.js');
-    const lead = getLeadByThread(event.thread_id);
-    
-    if (lead && slackClient) {
-      // Also counts as an open
-      recordEmailOpen(lead.id);
-      
-      await slackClient.chat.postMessage({
-        channel: channelId,
-        text: `${lead.name || lead.email} clicked a link in your email`,
-        blocks: [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `*${lead.name || lead.email}* clicked a link in your email`,
-            },
-          },
-          {
-            type: 'context',
-            elements: [
-              {
-                type: 'mrkdwn',
-                text: `${lead.company ? `${lead.company} • ` : ''}High engagement signal`,
-              },
-            ],
-          },
-        ],
-      });
-      console.log(`[Webhook] Notified Slack of link click from ${lead.email}`);
-    }
-  } catch (error) {
-    console.error('[Webhook] Failed to process link click:', error);
-  }
+  // Lead tracking removed; no further action.
 }
 
 // =============================================================================

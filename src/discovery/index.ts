@@ -25,25 +25,11 @@ export {
   generateFollowUpDraft as generateMeetingFollowUpDraft,
   surfaceMeetingFollowUp,
   discoverMeetingFollowUps,
-  createLeadFromMeeting,
   type EndedMeeting,
   type MeetingAttendee,
   type MeetingNotes,
   type MeetingFollowUp,
-} from './meeting-followup.js';
-
-// Lead follow-up cadence
-export {
-  detectResponses,
-  processResponses,
-  getFollowUpsDue,
-  generateFollowUpDraft as generateLeadFollowUpDraft,
-  surfaceFollowUp,
-  runFollowUpCadence,
-  runResponseDetection,
-  type FollowUpDue,
-  type ResponseDetected,
-} from './lead-followup.js';
+} from './meeting/index.js';
 
 // Prompts (centralized)
 export * from '../prompts/index.js';

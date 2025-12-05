@@ -249,7 +249,10 @@ export function registerFollowUpHandlers(app: App): void {
   app.action<BlockAction<ButtonAction>>('meeting_followup_skip', async ({ ack, body, client }) => {
     await ack();
 
-    const meetingId = body.actions[0].value || '';
+    const data = safeParseActionValue(body.actions?.[0]?.value);
+    const meetingId = data.meetingId || body.actions?.[0]?.value || '';
+    const meetingTitle = data.meetingTitle || 'meeting';
+    const recipientName = data.recipientName || data.recipientEmail || 'recipient';
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
 
@@ -262,218 +265,7 @@ export function registerFollowUpHandlers(app: App): void {
       await client.chat.postMessage({
         channel: channelId,
         thread_ts: messageTs,
-        text: 'Skipped',
-      });
-    }
-  });
-
-  // ============================================
-  // LEAD FOLLOW-UP CADENCE HANDLERS
-  // ============================================
-
-  // Create lead follow-up draft
-  app.action<BlockAction<ButtonAction>>('lead_followup_send', async ({ ack, body, client }) => {
-    await ack();
-
-    const data = JSON.parse(body.actions[0].value || '{}');
-    const channelId = body.channel?.id || '';
-    const messageTs = body.message?.ts || '';
-
-    const { getLead } = await import('../../db/sales-leads.js');
-    const lead = getLead(data.leadId);
-
-    if (!lead) {
-      if (messageTs && channelId) {
-        await client.chat.postMessage({
-          channel: channelId,
-          thread_ts: messageTs,
-          text: 'Lead not found',
-        });
-      }
-      return;
-    }
-
-    const result = await emailHandlers.createDraft({
-      to: [lead.email],
-      subject: data.subject,
-      body: data.body.replace(/\n/g, '<br>'),
-    });
-
-    if (messageTs && channelId) {
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: messageTs,
-        text: result.success
-          ? ` Draft created for ${lead.name || lead.email} - check your Drafts folder`
-          : `${result.error}`,
-      });
-    }
-  });
-
-  // Edit lead follow-up draft
-  app.action<BlockAction<ButtonAction>>('lead_followup_edit', async ({ ack, body, client }) => {
-    await ack();
-
-    const data = JSON.parse(body.actions[0].value || '{}');
-    const channelId = body.channel?.id || '';
-    const messageTs = body.message?.ts || '';
-
-    const { getLead } = await import('../../db/sales-leads.js');
-    const lead = getLead(data.leadId);
-
-    await client.views.open({
-      trigger_id: body.trigger_id,
-      view: {
-        type: 'modal',
-        callback_id: 'lead_followup_submit',
-        private_metadata: JSON.stringify({
-          leadId: data.leadId,
-          stage: data.stage,
-          channelId,
-          messageTs,
-        }),
-        title: { type: 'plain_text', text: 'Create Draft' },
-        submit: { type: 'plain_text', text: 'Create Draft' },
-        close: { type: 'plain_text', text: 'Cancel' },
-        blocks: [
-          {
-            type: 'context',
-            elements: [{
-              type: 'mrkdwn',
-              text: `To: ${lead?.name || lead?.email || 'Unknown'}`,
-            }],
-          },
-          {
-            type: 'input',
-            block_id: 'subject_block',
-            element: {
-              type: 'plain_text_input',
-              action_id: 'subject_input',
-              initial_value: data.subject,
-            },
-            label: { type: 'plain_text', text: 'Subject' },
-          },
-          {
-            type: 'input',
-            block_id: 'body_block',
-            element: {
-              type: 'plain_text_input',
-              action_id: 'body_input',
-              multiline: true,
-              initial_value: data.body,
-            },
-            label: { type: 'plain_text', text: 'Email' },
-          },
-        ],
-      },
-    });
-  });
-
-  // Submit edited lead follow-up
-  app.view('lead_followup_submit', async ({ ack, body, view, client }) => {
-    await ack();
-
-    const meta = JSON.parse(view.private_metadata);
-    const subject = view.state.values.subject_block?.subject_input?.value || '';
-    const emailBody = view.state.values.body_block?.body_input?.value || '';
-
-    const { getLead } = await import('../../db/sales-leads.js');
-    const lead = getLead(meta.leadId);
-
-    if (!lead) {
-      if (meta.messageTs && meta.channelId) {
-        await client.chat.postMessage({
-          channel: meta.channelId,
-          thread_ts: meta.messageTs,
-          text: 'Lead not found',
-        });
-      }
-      return;
-    }
-
-    const result = await emailHandlers.createDraft({
-      to: [lead.email],
-      subject,
-      body: emailBody.replace(/\n/g, '<br>'),
-    });
-
-    if (meta.messageTs && meta.channelId) {
-      await client.chat.postMessage({
-        channel: meta.channelId,
-        thread_ts: meta.messageTs,
-        text: result.success
-          ? ` Draft created for ${lead.name || lead.email} - check your Drafts folder`
-          : `${result.error}`,
-      });
-    }
-  });
-
-  // Snooze lead follow-up
-  app.action<BlockAction<ButtonAction>>('lead_followup_snooze', async ({ ack, body, client }) => {
-    await ack();
-
-    const data = JSON.parse(body.actions[0].value || '{}');
-    const channelId = body.channel?.id || '';
-    const messageTs = body.message?.ts || '';
-
-    const db = (await import('better-sqlite3')).default;
-    const path = await import('path');
-    const dbPath = path.join(process.cwd(), 'data', 'sales-leads.db');
-    const database = new db(dbPath);
-    
-    const snoozeDays = data.days || 3;
-    const newDate = new Date();
-    newDate.setDate(newDate.getDate() - (7 - snoozeDays));
-    
-    database.prepare(`
-      UPDATE sales_leads 
-      SET last_email_date = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `).run(newDate.toISOString(), data.leadId);
-    database.close();
-
-    if (messageTs && channelId) {
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: messageTs,
-        text: `Snoozed for ${snoozeDays} days`,
-      });
-    }
-  });
-
-  // Mark lead as cold
-  app.action<BlockAction<ButtonAction>>('lead_mark_cold', async ({ ack, body, client }) => {
-    await ack();
-
-    const leadId = body.actions[0].value || '';
-    const channelId = body.channel?.id || '';
-    const messageTs = body.message?.ts || '';
-
-    const { markLeadCold, getLead } = await import('../../db/sales-leads.js');
-    const lead = getLead(leadId);
-    markLeadCold(leadId);
-
-    if (messageTs && channelId) {
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: messageTs,
-        text: `Marked ${lead?.name || lead?.email || 'lead'} as cold`,
-      });
-    }
-  });
-
-  // Skip lead follow-up
-  app.action<BlockAction<ButtonAction>>('lead_followup_skip', async ({ ack, body, client }) => {
-    await ack();
-
-    const channelId = body.channel?.id || '';
-    const messageTs = body.message?.ts || '';
-
-    if (messageTs && channelId) {
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: messageTs,
-        text: 'Skipped',
+        text: `Skipped creating draft for ${meetingTitle} to ${recipientName}`,
       });
     }
   });
@@ -481,3 +273,11 @@ export function registerFollowUpHandlers(app: App): void {
   console.log('[FollowUpHandlers] Registered');
 }
 
+function safeParseActionValue(raw?: string): any {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}

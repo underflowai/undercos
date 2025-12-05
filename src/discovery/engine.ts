@@ -5,8 +5,7 @@
  * - Post discovery (post-discovery.ts)
  * - People discovery (people-discovery.ts)
  * - Email/meeting notes discovery (email-discovery.ts)
- * - Meeting follow-ups (meeting-followup.ts)
- * - Lead follow-up cadence (lead-followup.ts)
+ * - Meeting follow-ups (meeting/)
  */
 
 import type { WebClient } from '@slack/web-api';
@@ -30,7 +29,7 @@ import {
   surfaceQueuedConnections,
   type DiscoveredProfile,
 } from './people-discovery.js';
-import { getSeenProfilesCount, getLeadStatistics } from '../db/index.js';
+import { getSeenProfilesCount } from '../db/index.js';
 
 // Email discovery (legacy meeting notes check)
 import {
@@ -41,10 +40,8 @@ import {
 } from './email-discovery.js';
 
 // Meeting follow-ups (calendar-driven)
-import { discoverMeetingFollowUps, runHistoricalBackfill } from './meeting-followup.js';
+import { discoverMeetingFollowUps, runHistoricalBackfill } from './meeting/index.js';
 
-// Lead follow-up cadence
-import { runFollowUpCadence, runResponseDetection as checkForResponses } from './lead-followup.js';
 import { postDailySummary } from '../slack/summary.js';
 
 /**
@@ -102,24 +99,6 @@ export class DiscoveryEngine {
       'Meeting Follow-ups',
       15,
       () => this.runMeetingFollowUps()
-    );
-
-    // Schedule lead follow-up cadence check
-    // Runs every 4 hours to check for leads needing follow-up
-    scheduleTask(
-      'lead-cadence',
-      'Lead Follow-up Cadence',
-      240, // Every 4 hours
-      () => this.runLeadCadence()
-    );
-
-    // Schedule response detection (more frequent)
-    // Runs every hour to check if leads have responded
-    scheduleTask(
-      'response-detection',
-      'Response Detection',
-      60,
-      () => this.runResponseDetection()
     );
 
     // Schedule daily summary (hourly check after target time)
@@ -247,32 +226,6 @@ export class DiscoveryEngine {
     }
   }
 
-  /**
-   * Run lead follow-up cadence check
-   */
-  private async runLeadCadence(): Promise<void> {
-    const config = getDiscoveryConfig();
-    
-    try {
-      await runFollowUpCadence(this.slackClient, this.llm, config);
-    } catch (error) {
-      console.error('[Discovery] Lead cadence check failed:', error);
-    }
-  }
-
-  /**
-   * Run response detection
-   */
-  private async runResponseDetection(): Promise<void> {
-    const config = getDiscoveryConfig();
-    
-    try {
-      await checkForResponses(this.slackClient, config);
-    } catch (error) {
-      console.error('[Discovery] Response detection failed:', error);
-    }
-  }
-
   // ============================================
   // STATUS & CONTROLS
   // ============================================
@@ -287,7 +240,6 @@ export class DiscoveryEngine {
       seenPosts: getSeenPostsCount(),
       seenProfiles: getSeenProfilesCount(),
       seenMeetingNotes: getSeenMeetingNotesCount(),
-      leads: getLeadStatistics(),
       activity: getActivitySummary(),
     };
   }
@@ -321,7 +273,7 @@ export class DiscoveryEngine {
   /**
    * Manually trigger discovery
    */
-  async triggerNow(type: 'posts' | 'people' | 'meeting_notes' | 'meeting_followups' | 'lead_cadence' | 'activity_status' | 'historical_backfill'): Promise<void> {
+  async triggerNow(type: 'posts' | 'people' | 'meeting_notes' | 'meeting_followups' | 'activity_status' | 'historical_backfill'): Promise<void> {
     switch (type) {
       case 'posts':
         await this.runPostDiscovery();
@@ -334,9 +286,6 @@ export class DiscoveryEngine {
         break;
       case 'meeting_followups':
         await this.runMeetingFollowUps();
-        break;
-      case 'lead_cadence':
-        await this.runLeadCadence();
         break;
       case 'activity_status':
         await this.postActivityStatus();

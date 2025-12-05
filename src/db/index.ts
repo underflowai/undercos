@@ -4,7 +4,7 @@
  * Provides persistent storage for:
  * - Surfaced profiles (to avoid duplicates)
  * - Action tracking (approved, skipped)
- * - Sales leads (meeting follow-ups and cadence)
+ * - Surfaced meetings (meeting follow-up state)
  */
 
 export {
@@ -25,36 +25,16 @@ export {
   type QueryPerformance,
 } from './profiles.js';
 
-// Sales leads
+// Surfaced meetings tracking
 export {
-  createLead,
-  getLead,
-  getLeadByEmailAddress,
-  getLeadByMeeting,
-  getLeadByThread,
-  getAllActiveLeads,
-  getLeadsDueForFollowUp,
-  getLeadsByFollowUpStage,
-  getLeadsByThreads,
-  getWarmLeadsForFollowUp,
-  recordEmailSent,
-  recordEmailOpen,
-  recordLinkedInActivity,
-  markLeadLinkedInConnected,
-  markLeadResponded,
-  markLeadCold,
-  getLeadStatistics,
   hasMeetingBeenProcessed,
-  // Surfaced meetings tracking
   isMeetingSurfaced,
   markMeetingSurfaced,
   markMeetingSkipped,
   markMeetingSent,
   getSurfacedMeeting,
   getSurfacedMeetingStats,
-  type SalesLead,
-  type LeadStatus,
-  type CreateLeadParams,
+  getPendingSurfacedMeetings,
   type SurfacedMeeting,
   type SurfacedMeetingStatus,
 } from './sales-leads.js';

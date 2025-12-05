@@ -14,10 +14,8 @@ import type { KnownBlock } from '@slack/bolt';
 import type { ResponsesAPIClient } from '../../llm/responses.js';
 import { ResponsesRouter } from '../../agent/responses-router.js';
 import {
-  createLead,
   markMeetingSurfaced,
   hasMeetingBeenProcessed,
-  type CreateLeadParams,
 } from '../../db/sales-leads.js';
 import {
   MEETING_FOLLOWUP_PROMPT,
@@ -154,7 +152,11 @@ function buildMeetingConnectionBlocks(
           type: 'button',
           text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'discovery_skip_person',
-          value: attendee.email || attendee.name || '',
+          value: JSON.stringify({
+            profileId: attendee.providerId || attendee.email || attendee.name || '',
+            profileUrl: opts.profileUrl,
+            profileName: attendee.name || attendee.email || 'Unknown',
+          }),
         },
       ],
     },
@@ -557,7 +559,12 @@ export async function surfaceMeetingFollowUp(
           type: 'button',
           text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'meeting_followup_skip',
-          value: meetingKey,
+          value: JSON.stringify({
+            meetingId: meetingKey,
+            meetingTitle: meeting.title,
+            recipientName: primaryRecipient.name,
+            recipientEmail: primaryRecipient.email,
+          }),
         },
       ],
     },
@@ -716,39 +723,5 @@ export async function runHistoricalBackfill(
 
   console.log(`[Backfill] Complete: ${processed} processed, ${surfaced} surfaced, ${skipped} skipped`);
   return { processed, surfaced, skipped };
-}
-
-// =============================================================================
-// LEAD CREATION
-// =============================================================================
-
-/**
- * Create a sales lead from a meeting follow-up
- */
-export function createLeadFromMeeting(
-  meeting: EndedMeeting,
-  notes: MeetingNotes,
-  recipientEmail: string,
-  recipientName?: string
-): CreateLeadParams {
-  const emailParts = recipientEmail.split('@');
-  const domain = emailParts[1] || '';
-  const company = domain.split('.')[0];
-
-  return {
-    email: recipientEmail,
-    name: recipientName,
-    company: company !== 'gmail' && company !== 'yahoo' && company !== 'hotmail' 
-      ? company.charAt(0).toUpperCase() + company.slice(1) 
-      : undefined,
-    meeting_id: meeting.id,
-    meeting_date: meeting.endTime.toISOString(),
-    meeting_title: meeting.title,
-    meeting_notes_id: notes.id,
-    meeting_notes_summary: [
-      ...notes.keyPoints.slice(0, 2),
-      ...notes.actionItems.slice(0, 2),
-    ].join('; '),
-  };
 }
 

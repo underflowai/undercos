@@ -562,7 +562,11 @@ function buildConnectionBlocks(
           type: 'button',
           text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'discovery_skip_person',
-          value: profile.id,
+          value: JSON.stringify({
+            profileId: profile.id,
+            profileUrl: profile.profile_url,
+            profileName: profile.name,
+          }),
         },
       ],
     },

@@ -10,7 +10,6 @@
  * 3. Look for matching meeting notes from assistant@day.ai
  * 4. Parse notes and draft follow-up email
  * 5. Surface in Slack for approval
- * 6. On send: create sales lead, apply "Sales Leads" label
  */
 
 // Re-export types
@@ -35,6 +34,5 @@ export {
   surfaceMeetingFollowUp,
   discoverMeetingFollowUps,
   runHistoricalBackfill,
-  createLeadFromMeeting,
 } from './orchestration.js';
 

@@ -345,7 +345,10 @@ export function registerPeopleHandlers(app: App): void {
   app.action<BlockAction<ButtonAction>>('discovery_skip_person', async ({ ack, body, client }) => {
     await ack();
 
-    const profileId = body.actions[0].value || '';
+    const data = safeParseActionValue(body.actions?.[0]?.value);
+    const profileId = data.profileId || body.actions?.[0]?.value || '';
+    const profileName = data.profileName || 'this person';
+    const profileUrl = data.profileUrl;
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
 
@@ -355,8 +358,11 @@ export function registerPeopleHandlers(app: App): void {
 
     if (messageTs && channelId) {
       await updateMessage(client, channelId, messageTs, {
-        text: 'Skipped',
-        blocks: buildStatusBlocks('Skipped'),
+        text: `Skipped sending connection request to ${profileName}`,
+        blocks: buildSkipBlocks({
+          title: `Skipped sending connection request to ${profileName}`,
+          profileUrl,
+        }),
       });
     }
   });
@@ -426,11 +432,39 @@ function buildRetryBlocks(params: {
           type: 'button',
           text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'discovery_skip_person',
-          value: params.profileUrl || '',
+          value: JSON.stringify({
+            profileUrl: params.profileUrl,
+            profileName: params.personName,
+          }),
         },
       ],
     },
   ];
+}
+
+function buildSkipBlocks(params: { title: string; profileUrl?: string }): KnownBlock[] {
+  const blocks: KnownBlock[] = [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: params.title },
+    },
+  ];
+
+  if (params.profileUrl) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'View Profile', emoji: false },
+          url: params.profileUrl,
+          action_id: 'discovery_view_profile',
+        },
+      ],
+    });
+  }
+
+  return blocks;
 }
 
 async function updateMessage(client: any, channelId: string, ts: string, payload: { text: string; blocks?: KnownBlock[] }): Promise<void> {
