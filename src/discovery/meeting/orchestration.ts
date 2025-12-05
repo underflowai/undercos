@@ -100,7 +100,7 @@ export async function queueLinkedInConnectionForAttendee(
   attendee: MeetingAttendee,
   meetingContext: { title: string; date: Date }
 ): Promise<{ found: boolean; alreadyConnected: boolean; queued: boolean }> {
-  const { isUnipileConfigured, searchLinkedIn, getActiveLinkedinAccountId } = await import('../../tools/unipile-sdk.js');
+  const { isUnipileConfigured, getActiveLinkedinAccountId } = await import('../../tools/unipile-sdk.js');
   const accountId = await getActiveLinkedinAccountId();
 
   if (!isUnipileConfigured() || !accountId) {
@@ -109,40 +109,27 @@ export async function queueLinkedInConnectionForAttendee(
 
   try {
     const searchName = attendee.name || attendee.email.split('@')[0];
-    const searchResults = await searchLinkedIn({
-      category: 'people',
-      keywords: searchName,
-      limit: 5,
-    });
+    const companyHint = attendee.email.split('@')[1]?.split('.')[0];
 
-    if (searchResults.items.length === 0) {
-      console.log(`[LinkedIn] No profile found for ${searchName}`);
+    const resolution = await (await import('../../tools/linkedin.js')).resolveProviderId({
+      profileName: searchName,
+      companyHint,
+    } as any);
+
+    if (resolution.error || !resolution.providerId) {
+      console.log(`[LinkedIn] Could not resolve provider_id for ${searchName}: ${resolution.error}`);
       return { found: false, alreadyConnected: false, queued: false };
-    }
-
-    const emailDomain = attendee.email.split('@')[1]?.replace('www.', '');
-    const match = searchResults.items.find((p: any) => {
-      const nameMatch = p.name?.toLowerCase().includes(searchName.toLowerCase());
-      const companyMatch = emailDomain && p.company?.toLowerCase().includes(emailDomain.split('.')[0]);
-      return nameMatch || companyMatch;
-    }) || searchResults.items[0];
-
-    if ((match as any).is_connection) {
-      console.log(`[LinkedIn] Already connected with ${(match as any).name}`);
-      return { found: true, alreadyConnected: true, queued: false };
     }
 
     const { LINKEDIN_MEETING_NOTE_PROMPT } = await import('../../prompts/index.js');
     const { ResponsesAPIClient } = await import('../../llm/responses.js');
     const { env } = await import('../../config/env.js');
-    
     const notePrompt = `Meeting: ${meetingContext.title}
 Date: ${meetingContext.date.toLocaleDateString()}
-Person: ${(match as any).name}
-Their headline: ${(match as any).headline || 'N/A'}
+Person: ${resolution.resolvedName || attendee.name || 'Unknown'}
+Their headline: N/A
 
 Generate a brief, personalized LinkedIn connection note (max 200 chars).`;
-
     const llm = new ResponsesAPIClient(env.OPENAI_API_KEY, { enableWebSearch: false });
     const noteResult = await generateContent({
       systemPrompt: LINKEDIN_MEETING_NOTE_PROMPT,
@@ -150,37 +137,29 @@ Generate a brief, personalized LinkedIn connection note (max 200 chars).`;
       maxTokens: 100,
       effort: 'low',
     }, llm);
-    
     const connectionNote = noteResult.text?.slice(0, 200) || `Great connecting at ${meetingContext.title}!`;
-    
+
     const { executeLinkedInAction } = await import('../../tools/linkedin.js');
     const result = await executeLinkedInAction('send_connection_request', {
-      profileId: (match as any).provider_id,
-      profileUrl: (match as any).profile_url,
-      profileName: (match as any).name,
+      profileId: resolution.providerId,
+      profileUrl: resolution.profileUrl,
+      profileName: resolution.resolvedName || attendee.name,
       note: connectionNote,
     }, connectionNote);
-    
+
     if (result.success) {
-      console.log(`[LinkedIn] Sent connection request to ${(match as any).name}`);
+      console.log(`[LinkedIn] Sent connection request to ${resolution.resolvedName || searchName}`);
       return { found: true, alreadyConnected: false, queued: true };
-    } else {
-      console.log(`[LinkedIn] Connection request failed: ${result.error}`);
-      return { found: true, alreadyConnected: false, queued: false };
     }
+
+    console.log(`[LinkedIn] Connection request failed: ${result.error}`);
+    return { found: true, alreadyConnected: false, queued: false };
   } catch (error) {
-    console.error('[LinkedIn] Lookup failed:', error);
+    console.error('[LinkedIn] queueLinkedInConnectionForAttendee failed:', error);
     return { found: false, alreadyConnected: false, queued: false };
   }
 }
 
-// =============================================================================
-// FOLLOW-UP DRAFT GENERATION
-// =============================================================================
-
-/**
- * Generate a follow-up email draft using Claude Opus 4.5 with HIGH effort
- */
 export async function generateFollowUpDraft(
   llm: ResponsesAPIClient,
   meeting: EndedMeeting,

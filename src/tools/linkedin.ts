@@ -24,6 +24,75 @@ import { trackSentInvitation } from '../tracking/invitations.js';
 import { logAction, updateActionStatus, getLatestAction } from '../db/actions-log.js';
 
 // Type definitions for LinkedIn data
+// Helper to resolve provider_id from given identifiers
+export async function resolveProviderId(opts: {
+  profileId?: string;
+  profileUrl?: string;
+  profileName?: string;
+  companyHint?: string;
+}): Promise<{ providerId?: string; profileUrl?: string; resolvedName?: string; error?: string }> {
+  let { profileId, profileUrl } = opts;
+
+  const isProviderId = (id?: string) => id?.startsWith('ACoAAA') || id?.startsWith('ACwAAA') || id?.startsWith('AEMAA');
+  if (isProviderId(profileId)) {
+    return { providerId: profileId, profileUrl, resolvedName: opts.profileName };
+  }
+
+  const identifier = profileId || profileUrl?.replace('https://linkedin.com/in/', '');
+  if (identifier) {
+    try {
+      const profile = await getProfile(identifier);
+      if (profile && (profile as any).provider_id) {
+        return {
+          providerId: (profile as any).provider_id,
+          profileUrl: (profile as any).profile_url || profileUrl,
+          resolvedName: (profile as any).name || opts.profileName,
+        };
+      }
+    } catch {}
+  }
+
+  const keywords = [opts.profileName, opts.companyHint].filter(Boolean).join(' ').trim();
+  if (!keywords) {
+    return { error: 'No valid profile identifier provided' };
+  }
+
+  try {
+    const searchResults = await searchLinkedIn({
+      api: 'sales_navigator',
+      category: 'people',
+      keywords,
+      limit: 5,
+    });
+
+    if (!searchResults.items || searchResults.items.length === 0) {
+      return { error: 'Could not resolve LinkedIn provider ID. The profile may not be accessible.' };
+    }
+
+    const searchName = opts.profileName?.toLowerCase() || '';
+    const match =
+      searchResults.items.find((p: any) => p.name?.toLowerCase().includes(searchName)) ||
+      searchResults.items[0];
+
+    if ((match as any).provider_id) {
+      return {
+        providerId: (match as any).provider_id,
+        profileUrl: (match as any).profile_url || profileUrl,
+        resolvedName: (match as any).name || opts.profileName,
+      };
+    }
+    return { error: 'Could not resolve LinkedIn provider ID. The profile may not be accessible.' };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Could not resolve LinkedIn provider ID. The profile may not be accessible.',
+    };
+  }
+}
+
+
 interface UnipilePost {
   id: string;
   provider_id?: string;
@@ -685,90 +754,57 @@ export async function executeLinkedInAction(
     }
     
     case 'send_connection_request': {
-      let profileId = args.profileId as string | undefined;
       const profileUrl = args.profileUrl as string | undefined;
       const profileName = args.profileName as string | undefined;
       const note = editedDraft || (args.note as string | undefined);
-      
-      // Basic validation
-      if (!profileId && !profileUrl) {
-        return { success: false, error: 'No profile identifier provided' };
-      }
-      if (!profileId && profileUrl) {
-        profileId = profileUrl.replace('https://linkedin.com/in/', '');
+      const resolution = await resolveProviderId({
+        profileId: args.profileId as string | undefined,
+        profileUrl,
+        profileName,
+      });
+
+      if (resolution.error) {
+        return { success: false, error: resolution.error };
       }
 
-      // Idempotency: if we already have a succeeded action for this provider_id, return it
-      const existing = profileId ? getLatestAction('send_connection_request', 'linkedin_profile', profileId) : null;
+      const providerId = resolution.providerId;
+      if (!providerId) {
+        return { success: false, error: 'Unable to resolve profile ID' };
+      }
+
+      const existing = getLatestAction('send_connection_request', 'linkedin_profile', providerId);
       if (existing?.status === 'succeeded') {
-        return { success: true, message: ' Connection already sent' };
+        return { success: true, message: 'Connection already sent' };
       }
       
       const actionId = logAction({
         actionType: 'send_connection_request',
         entityType: 'linkedin_profile',
-        entityId: profileId || profileUrl || 'unknown',
+        entityId: providerId,
         status: 'pending',
-        data: { profileUrl, note },
+        data: { profileUrl: resolution.profileUrl, note },
       });
       
       if (isUnipileConfigured()) {
         try {
-          const isProviderId = profileId?.startsWith('ACoAAA') || profileId?.startsWith('ACwAAA') || profileId?.startsWith('AEMAA');
+          console.log(`[LinkedIn] Sending invitation to provider_id: ${providerId}`);
           
-          if (!isProviderId) {
-            console.log(`[LinkedIn] profileId "${profileId}" is not a provider_id, fetching profile first...`);
-            
-            const identifier = profileId || profileUrl?.replace('https://linkedin.com/in/', '');
-            if (identifier) {
-              try {
-                const profile = await getProfile(identifier);
-                
-                if (profile && (profile as any).provider_id) {
-                  console.log(`[LinkedIn] Resolved provider_id: ${(profile as any).provider_id}`);
-                  profileId = (profile as any).provider_id;
-                } else {
-                  console.error('[LinkedIn] Profile fetch did not return provider_id');
-                  updateActionStatus(actionId, 'failed', { errorMessage: 'Could not resolve LinkedIn provider ID. Try again.' });
-                  return { success: false, error: 'Could not resolve LinkedIn provider ID. Try again.' };
-                }
-              } catch (profileError) {
-                console.error('[LinkedIn] Failed to fetch profile:', profileError);
-                updateActionStatus(actionId, 'failed', { errorMessage: 'Could not resolve LinkedIn provider ID. The profile may not be accessible.' });
-                return { 
-                  success: false, 
-                  error: 'Could not resolve LinkedIn provider ID. The profile may not be accessible.' 
-                };
-              }
-            } else {
-              updateActionStatus(actionId, 'failed', { errorMessage: 'No valid profile identifier provided' });
-              return { success: false, error: 'No valid profile identifier provided' };
-            }
-          }
-          
-          if (!profileId) {
-            updateActionStatus(actionId, 'failed', { errorMessage: 'Unable to resolve profile ID' });
-            return { success: false, error: 'Unable to resolve profile ID' };
-          }
-          
-          console.log(`[LinkedIn] Sending invitation to provider_id: ${profileId}`);
-          
-          const response = await sendInvitation(profileId, note);
+          const response = await sendInvitation(providerId, note);
           
           if (response.success) {
             recordActivity('invitation');
             
             if (note) {
               trackSentInvitation({
-                providerId: profileId,
-                publicId: profileUrl?.replace('https://linkedin.com/in/', ''),
-                name: profileName,
+                providerId,
+                publicId: resolution.profileUrl?.replace('https://linkedin.com/in/', ''),
+                name: resolution.resolvedName || profileName,
                 note,
               });
             }
             
-            updateActionStatus(actionId, 'succeeded', { data: { providerId: profileId, note } });
-            return { success: true, message: ' Connection request sent via Unipile!' };
+            updateActionStatus(actionId, 'succeeded', { data: { providerId, note } });
+            return { success: true, message: 'Connection request sent via Unipile!' };
           } else {
             updateActionStatus(actionId, 'failed', { errorMessage: response.error || 'Failed to send connection' });
             return { success: false, error: response.error || 'Failed to send connection' };
@@ -784,8 +820,8 @@ export async function executeLinkedInAction(
       }
       
       recordActivity('invitation');
-      updateActionStatus(actionId, 'succeeded', { data: { profileId, note, mode: 'mock' } });
-      console.log(`[Mock] Sent connection to ${profileId}${note ? ` with note: ${note}` : ''}`);
+      updateActionStatus(actionId, 'succeeded', { data: { providerId, note, mode: 'mock' } });
+      console.log(`[Mock] Sent connection to ${providerId}${note ? ` with note: ${note}` : ''}`);
       return { success: true, message: '[Mock] Connection request sent!' };
     }
     
