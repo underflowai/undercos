@@ -311,7 +311,7 @@ export const linkedinHandlers = {
     return {
       success: true,
       requiresApproval: true,
-      approvalTitle: '💬 Comment on LinkedIn Post',
+      approvalTitle: ' Comment on LinkedIn Post',
       draft: args.comment,
       context: `Post: ${args.postUrl}`,
       data: {
@@ -334,7 +334,7 @@ export const linkedinHandlers = {
     return {
       success: true,
       requiresApproval: true,
-      approvalTitle: `👍 ${args.reactionType} LinkedIn Post`,
+      approvalTitle: ` ${args.reactionType} LinkedIn Post`,
       context: `Post: ${args.postUrl}`,
       data: {
         postId,
@@ -640,7 +640,7 @@ export async function executeLinkedInAction(
           
           if (response.success) {
             recordActivity('comment');
-            return { success: true, message: '✅ Comment posted via Unipile!' };
+            return { success: true, message: ' Comment posted via Unipile!' };
           } else {
             return { success: false, error: response.error || 'Failed to post comment' };
           }
@@ -667,7 +667,7 @@ export async function executeLinkedInAction(
           
           if (response.success) {
             recordActivity('like');
-            return { success: true, message: '✅ Reaction added via Unipile!' };
+            return { success: true, message: ' Reaction added via Unipile!' };
           } else {
             return { success: false, error: response.error || 'Failed to react' };
           }
@@ -701,7 +701,7 @@ export async function executeLinkedInAction(
       // Idempotency: if we already have a succeeded action for this provider_id, return it
       const existing = profileId ? getLatestAction('send_connection_request', 'linkedin_profile', profileId) : null;
       if (existing?.status === 'succeeded') {
-        return { success: true, message: '✅ Connection already sent' };
+        return { success: true, message: ' Connection already sent' };
       }
       
       const actionId = logAction({
@@ -768,7 +768,7 @@ export async function executeLinkedInAction(
             }
             
             updateActionStatus(actionId, 'succeeded', { data: { providerId: profileId, note } });
-            return { success: true, message: '✅ Connection request sent via Unipile!' };
+            return { success: true, message: ' Connection request sent via Unipile!' };
           } else {
             updateActionStatus(actionId, 'failed', { errorMessage: response.error || 'Failed to send connection' });
             return { success: false, error: response.error || 'Failed to send connection' };
@@ -799,7 +799,7 @@ export async function executeLinkedInAction(
           
           if (response.success) {
             recordActivity('message');
-            return { success: true, message: '✅ Message sent via Unipile!' };
+            return { success: true, message: ' Message sent via Unipile!' };
           } else {
             return { success: false, error: response.error || 'Failed to send message' };
           }

@@ -303,8 +303,8 @@ export function formatActivitySummaryForSlack(): string {
   ];
   
   for (const activity of summary.activities) {
-    const emoji = activity.status === 'limit_reached' ? '🔴' 
-                : activity.status === 'warning' ? '🟡' 
+    const emoji = activity.status === 'limit_reached' ? 'High' 
+                : activity.status === 'warning' ? 'Normal' 
                 : '🟢';
     
     let line = `${emoji} *${activity.type}*: ${activity.count}/${activity.dailyLimit} daily`;

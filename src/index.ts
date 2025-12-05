@@ -89,18 +89,18 @@ async function main() {
 
   // Status output
   const unipileStatus = isUnipileConfigured() 
-    ? '✅ Unipile connected - real LinkedIn actions enabled'
+    ? ' Unipile connected - real LinkedIn actions enabled'
     : '⚠️  Unipile not configured - using mock mode';
 
   const discoveryStatus = env.DISCOVERY_CHANNEL_ID
-    ? `✅ Auto-discovery enabled → #${env.DISCOVERY_CHANNEL_ID}`
+    ? ` Auto-discovery enabled → #${env.DISCOVERY_CHANNEL_ID}`
     : '⚠️  Auto-discovery disabled (set DISCOVERY_CHANNEL_ID)';
 
   const webhookStatus = env.WEBHOOK_URL
-    ? `✅ Webhooks enabled → ${env.WEBHOOK_URL}`
+    ? ` Webhooks enabled → ${env.WEBHOOK_URL}`
     : '⚠️  Webhooks disabled (set WEBHOOK_URL)';
 
-  console.log('\n✅ LinkedIn AI Bot is running!');
+  console.log('\n LinkedIn AI Bot is running!');
   console.log(`   ${unipileStatus}`);
   console.log(`   ${discoveryStatus}`);
   console.log(`   ${webhookStatus}`);
@@ -116,6 +116,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('❌ Fatal error:', error);
+  console.error(' Fatal error:', error);
   process.exit(1);
 });

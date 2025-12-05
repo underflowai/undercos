@@ -66,7 +66,7 @@ export function registerHandlers(app: App, router: ResponsesRouter): void {
       await client.chat.postMessage({
         channel: channelId,
         thread_ts: threadTs,
-        text: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        text: ` Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
     }
   });
@@ -124,7 +124,7 @@ export function registerHandlers(app: App, router: ResponsesRouter): void {
       await client.chat.postMessage({
         channel: channelId,
         thread_ts: threadTs,
-        text: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        text: ` Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
     }
   });

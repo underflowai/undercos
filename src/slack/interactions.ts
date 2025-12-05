@@ -25,8 +25,8 @@ export function registerInteractions(app: App, router: ResponsesRouter): void {
         channel: channelId,
         thread_ts: threadTs,
         text: result.success 
-          ? `✅ Done! ${result.message || ''}`
-          : `❌ Failed: ${result.error}`,
+          ? ` Done! ${result.message || ''}`
+          : ` Failed: ${result.error}`,
       });
 
       // Update original message
@@ -34,10 +34,10 @@ export function registerInteractions(app: App, router: ResponsesRouter): void {
         await client.chat.update({
           channel: channelId,
           ts: body.message.ts,
-          text: '✅ Approved and executed',
+          text: ' Approved and executed',
           blocks: [{
             type: 'section',
-            text: { type: 'mrkdwn', text: '✅ *Approved and executed*' },
+            text: { type: 'mrkdwn', text: ' *Approved and executed*' },
           }],
         });
       }
@@ -45,7 +45,7 @@ export function registerInteractions(app: App, router: ResponsesRouter): void {
       await client.chat.postMessage({
         channel: channelId,
         thread_ts: threadTs,
-        text: `❌ Error: ${error instanceof Error ? error.message : 'Unknown'}`,
+        text: ` Error: ${error instanceof Error ? error.message : 'Unknown'}`,
       });
     }
   });
@@ -98,17 +98,17 @@ export function registerInteractions(app: App, router: ResponsesRouter): void {
       await client.chat.postMessage({
         channel: meta.channelId,
         thread_ts: meta.threadTs,
-        text: result.success ? '✅ Sent with your edits!' : `❌ Failed: ${result.error}`,
+        text: result.success ? ' Sent with your edits!' : ` Failed: ${result.error}`,
       });
 
       if (meta.messageTs) {
         await client.chat.update({
           channel: meta.channelId,
           ts: meta.messageTs,
-          text: '✏️ Edited and sent',
+          text: ' Edited and sent',
           blocks: [{
             type: 'section',
-            text: { type: 'mrkdwn', text: '✏️ *Edited and sent*' },
+            text: { type: 'mrkdwn', text: ' *Edited and sent*' },
           }],
         });
       }
@@ -116,7 +116,7 @@ export function registerInteractions(app: App, router: ResponsesRouter): void {
       await client.chat.postMessage({
         channel: meta.channelId,
         thread_ts: meta.threadTs,
-        text: `❌ Error: ${error instanceof Error ? error.message : 'Unknown'}`,
+        text: ` Error: ${error instanceof Error ? error.message : 'Unknown'}`,
       });
     }
   });
@@ -136,10 +136,10 @@ export function registerInteractions(app: App, router: ResponsesRouter): void {
       await client.chat.update({
         channel: channelId,
         ts: body.message.ts,
-        text: '⏭️ Skipped',
+        text: ' Skipped',
         blocks: [{
           type: 'section',
-          text: { type: 'mrkdwn', text: '⏭️ *Skipped*' },
+          text: { type: 'mrkdwn', text: ' *Skipped*' },
         }],
       });
     }
@@ -194,20 +194,20 @@ export async function postApprovalMessage(
     elements: [
       {
         type: 'button',
-        text: { type: 'plain_text', text: '✅ Approve', emoji: true },
+        text: { type: 'plain_text', text: ' Approve', emoji: true },
         style: 'primary',
         action_id: 'approve_action',
         value: action.id,
       },
       {
         type: 'button',
-        text: { type: 'plain_text', text: '✏️ Edit', emoji: true },
+        text: { type: 'plain_text', text: ' Edit', emoji: true },
         action_id: 'edit_action',
         value: JSON.stringify({ id: action.id, draft: action.draft }),
       },
       {
         type: 'button',
-        text: { type: 'plain_text', text: '⏭️ Skip', emoji: true },
+        text: { type: 'plain_text', text: ' Skip', emoji: true },
         action_id: 'skip_action',
         value: action.id,
       },

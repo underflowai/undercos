@@ -96,7 +96,7 @@ export function registerFollowUpHandlers(app: App): void {
             type: 'mrkdwn',
             text: result.success 
               ? `Follow-up sent to ${meta.recipientName}`
-              : `❌ *Failed*: ${result.error}`,
+              : ` *Failed*: ${result.error}`,
           },
         }],
       });
@@ -151,7 +151,7 @@ export function registerFollowUpHandlers(app: App): void {
         channel: channelId,
         thread_ts: messageTs,
         text: result.success
-          ? `✏️ Draft created for ${data.recipientName || data.to[0]} - check your Drafts folder`
+          ? ` Draft created for ${data.recipientName || data.to[0]} - check your Drafts folder`
           : `${result.error}`,
       });
     }
@@ -239,7 +239,7 @@ export function registerFollowUpHandlers(app: App): void {
         channel: meta.channelId,
         thread_ts: meta.messageTs,
         text: result.success
-          ? `✏️ Draft created for ${meta.recipientName || meta.recipientEmail} - check your Drafts folder`
+          ? ` Draft created for ${meta.recipientName || meta.recipientEmail} - check your Drafts folder`
           : `${result.error}`,
       });
     }
@@ -304,7 +304,7 @@ export function registerFollowUpHandlers(app: App): void {
         channel: channelId,
         thread_ts: messageTs,
         text: result.success
-          ? `✏️ Draft created for ${lead.name || lead.email} - check your Drafts folder`
+          ? ` Draft created for ${lead.name || lead.email} - check your Drafts folder`
           : `${result.error}`,
       });
     }
@@ -402,7 +402,7 @@ export function registerFollowUpHandlers(app: App): void {
         channel: meta.channelId,
         thread_ts: meta.messageTs,
         text: result.success
-          ? `✏️ Draft created for ${lead.name || lead.email} - check your Drafts folder`
+          ? ` Draft created for ${lead.name || lead.email} - check your Drafts folder`
           : `${result.error}`,
       });
     }

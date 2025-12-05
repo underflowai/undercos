@@ -193,7 +193,7 @@ export function registerLinkedInMessagingHandlers(app: App): void {
         await client.chat.postMessage({
           channel: channelId,
           thread_ts: messageTs,
-          text: `✅ Reply sent to ${senderName || 'LinkedIn user'}:\n>"${message.slice(0, 100)}${message.length > 100 ? '...' : ''}"`,
+          text: ` Reply sent to ${senderName || 'LinkedIn user'}:\n>"${message.slice(0, 100)}${message.length > 100 ? '...' : ''}"`,
         });
       }
       
@@ -315,7 +315,7 @@ export function registerLinkedInMessagingHandlers(app: App): void {
         await client.chat.postMessage({
           channel: channelId,
           thread_ts: messageTs,
-          text: `✅ Message sent to ${name || 'LinkedIn user'}:\n>"${message.slice(0, 100)}${message.length > 100 ? '...' : ''}"`,
+          text: ` Message sent to ${name || 'LinkedIn user'}:\n>"${message.slice(0, 100)}${message.length > 100 ? '...' : ''}"`,
         });
       }
       

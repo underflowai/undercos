@@ -457,7 +457,7 @@ export async function surfaceMeetingFollowUp(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*To:* ${primaryRecipient.email}\n*Priority:* ${classification.priority === 'high' ? '🔴 High' : '🟡 Normal'}`,
+        text: `*To:* ${primaryRecipient.email}\n*Priority:* ${classification.priority === 'high' ? 'High High' : 'Normal Normal'}`,
       },
     },
     { type: 'divider' },

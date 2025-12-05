@@ -183,7 +183,7 @@ export async function surfaceMeetingNote(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `📧 *New Meeting Notes*`,
+        text: ` *New Meeting Notes*`,
       },
     },
     {
@@ -243,7 +243,7 @@ export async function surfaceMeetingNote(
       },
       {
         type: 'button',
-        text: { type: 'plain_text', text: '⏭️ Skip', emoji: true },
+        text: { type: 'plain_text', text: ' Skip', emoji: true },
         action_id: 'discovery_skip_email',
         value: email.id,
       },
