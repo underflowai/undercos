@@ -100,10 +100,11 @@ export function registerPostHandlers(app: App): void {
     }
 
     // Execute the comment action
-    const result = await executeLinkedInAction('comment', {
+    const result = await executeLinkedInAction('comment_on_post', {
       postId: metadata.postId,
       postUrl: metadata.postUrl,
-    }, comment);
+      comment,
+    });
 
     // Update the original message with result
     if (metadata.channelId && metadata.messageTs) {
@@ -134,7 +135,7 @@ export function registerPostHandlers(app: App): void {
     const channelId = body.channel?.id || '';
     const messageTs = body.message?.ts || '';
 
-    const result = await executeLinkedInAction('like', {
+    const result = await executeLinkedInAction('like_post', {
       postId: data.postId,
       postUrl: data.postUrl,
     });
