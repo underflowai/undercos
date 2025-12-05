@@ -104,13 +104,14 @@ function buildMeetingKey(meeting: EndedMeeting, primaryEmail: string): string {
 function buildMeetingConnectionBlocks(
   meeting: EndedMeeting,
   attendee: MeetingAttendee,
-  opts: { profileId?: string; profileUrl?: string }
+  opts: { profileId?: string; profileUrl?: string; profileName?: string }
 ): KnownBlock[] {
-  const baseText = `*${attendee.name || attendee.email}*\nMeeting: ${meeting.title}`;
+  const displayName = opts.profileName || attendee.name || attendee.email;
+  const baseText = `*${displayName}*\nMeeting: ${meeting.title}`;
   const actionPayload = {
     profileId: opts.profileId,
     profileUrl: opts.profileUrl,
-    profileName: attendee.name,
+    profileName: displayName,
     draft: '',
   };
 
@@ -581,6 +582,7 @@ export async function surfaceMeetingFollowUp(
     for (const attendee of meetingAttendees) {
       let providerId: string | undefined;
       let profileUrl: string | undefined;
+      let resolvedName: string | undefined;
 
       try {
         const email = attendee.email || '';
@@ -595,6 +597,9 @@ export async function surfaceMeetingFollowUp(
         }
         if (resolution.profileUrl) {
           profileUrl = resolution.profileUrl;
+        }
+        if (resolution.resolvedName) {
+          resolvedName = resolution.resolvedName;
         }
       } catch (error) {
         console.error('[Surfacing] Could not resolve provider_id for attendee', attendee.email, error);
@@ -623,6 +628,7 @@ export async function surfaceMeetingFollowUp(
       const connectionBlocks = buildMeetingConnectionBlocks(meeting, attendee, {
         profileId: providerId,
         profileUrl,
+        profileName: resolvedName,
       });
 
       await slackClient.chat.postMessage({
