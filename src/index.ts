@@ -53,7 +53,7 @@ async function main() {
   registerDiscoveryHandlers(slackApp);
   registerLinkedInMessagingHandlers(slackApp);
   if (env.DISCOVERY_CHANNEL_ID) {
-    registerSummaryCommand(slackApp, env.DISCOVERY_CHANNEL_ID);
+    registerSummaryCommand(slackApp, responsesClient, env.DISCOVERY_CHANNEL_ID);
   }
 
   // Start Slack app (Socket Mode)

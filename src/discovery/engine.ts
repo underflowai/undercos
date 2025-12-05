@@ -363,7 +363,7 @@ export class DiscoveryEngine {
     if (now.getHours() < targetHour) return;
 
     try {
-      await postDailySummary(this.slackClient, channelId, now);
+      await postDailySummary(this.slackClient, this.llm, channelId, now);
       this.lastSummaryDate = dateKey;
       console.log('[Discovery] Posted daily summary');
     } catch (error) {

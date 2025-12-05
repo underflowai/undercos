@@ -1,143 +1,126 @@
 import type { App } from '@slack/bolt';
 import type { WebClient, KnownBlock } from '@slack/web-api';
+import type { ResponsesAPIClient } from '../llm/responses.js';
 import { getActivitySummary } from '../discovery/activity-tracker.js';
 import { getActionCountsByDate, getPendingActions } from '../db/actions-log.js';
 import { getPendingSurfacedMeetings } from '../db/sales-leads.js';
 import { getQueuedSuggestionCounts } from '../db/connection-queue.js';
 import { getDiscoveryConfig } from '../discovery/config.js';
+import { generateContent } from '../llm/content-generator.js';
 
-type SummarySection = {
-  title: string;
-  lines: string[];
+type SummarySnapshot = {
+  dateKey: string;
+  pendingMeetings: ReturnType<typeof getPendingSurfacedMeetings>;
+  queued: ReturnType<typeof getQueuedSuggestionCounts>;
+  actionCounts: ReturnType<typeof getActionCountsByDate>;
+  pendingActions: ReturnType<typeof getPendingActions>;
+  activity: ReturnType<typeof getActivitySummary>;
 };
 
-function formatSection(section: SummarySection): KnownBlock[] {
-  const blocks: KnownBlock[] = [];
-  blocks.push({
-    type: 'section',
-    text: { type: 'mrkdwn', text: `*${section.title}*` },
-  });
-
-  if (section.lines.length === 0) {
-    blocks.push({
-      type: 'context',
-      elements: [{ type: 'mrkdwn', text: 'None' }],
-    });
-    return blocks;
-  }
-
-  for (const line of section.lines) {
-    blocks.push({
-      type: 'context',
-      elements: [{ type: 'mrkdwn', text: line }],
-    });
-  }
-
-  blocks.push({ type: 'divider' });
-  return blocks;
+function buildSnapshot(date: Date = new Date()): SummarySnapshot {
+  const dateKey = date.toISOString().split('T')[0];
+  return {
+    dateKey,
+    pendingMeetings: getPendingSurfacedMeetings(),
+    queued: getQueuedSuggestionCounts(date),
+    actionCounts: getActionCountsByDate(date),
+    pendingActions: getPendingActions(date),
+    activity: getActivitySummary(),
+  };
 }
 
-function buildSummarySections(date: Date = new Date()): SummarySection[] {
-  const todayKey = date.toISOString().split('T')[0];
-
-  const pendingMeetings = getPendingSurfacedMeetings();
-  const queued = getQueuedSuggestionCounts(date);
-  const actionCounts = getActionCountsByDate(date);
-  const pendingActions = getPendingActions(date);
-  const activity = getActivitySummary();
-
+function fallbackText(snapshot: SummarySnapshot): string {
   const findCount = (actionType: string, status: string) =>
-    actionCounts.find((a) => a.actionType === actionType && a.status === status)?.count || 0;
+    snapshot.actionCounts.find((a) => a.actionType === actionType && a.status === status)?.count || 0;
 
-  const pendingSection: SummarySection = {
-    title: 'Pending actions',
-    lines: [],
-  };
-
-  pendingSection.lines.push(
-    `Meeting follow-ups awaiting decision: ${pendingMeetings.length}` +
-      (pendingMeetings.length > 0
-        ? ` (e.g., ${pendingMeetings.slice(0, 3).map((m) => m.meeting_title || m.recipient_email).join(', ')})`
-        : '')
-  );
-
-  pendingSection.lines.push(
-    `Ad-hoc connection suggestions queued: ${queued.dueToday} due today, ${queued.future} deferred`
-  );
-
+  const sentConnections = findCount('send_connection_request', 'succeeded');
+  const draftsCreated = findCount('create_draft', 'succeeded');
   const pendingConnections = findCount('send_connection_request', 'pending');
   const pendingDrafts = findCount('create_draft', 'pending');
   const failedConnections = findCount('send_connection_request', 'failed');
   const failedDrafts = findCount('create_draft', 'failed');
 
-  pendingSection.lines.push(`Pending sends: connections ${pendingConnections}, drafts ${pendingDrafts}`);
-  pendingSection.lines.push(`Failures today: connections ${failedConnections}, drafts ${failedDrafts}`);
+  const lines: string[] = [];
+  lines.push(`Summary for ${snapshot.dateKey}`);
+  lines.push(`Pending meeting follow-ups: ${snapshot.pendingMeetings.length}`);
+  lines.push(`Queued ad-hoc connections: ${snapshot.queued.dueToday} due, ${snapshot.queued.future} later`);
+  lines.push(`Sent today: ${sentConnections} connections, ${draftsCreated} drafts`);
+  lines.push(`Pending sends: ${pendingConnections} connections, ${pendingDrafts} drafts`);
+  lines.push(`Failures: ${failedConnections} connections, ${failedDrafts} drafts`);
 
-  const activitySection: SummarySection = {
-    title: `Today's activity (${todayKey})`,
-    lines: [],
-  };
+  const limits = snapshot.activity.activities
+    .map((a) => `${a.type} ${a.count}/${a.dailyLimit}${a.weeklyLimit ? ` (weekly ${a.weeklyCount}/${a.weeklyLimit})` : ''}`)
+    .join(' | ');
+  lines.push(`Limits: ${limits}`);
 
-  const sentConnections = findCount('send_connection_request', 'succeeded');
-  const draftsCreated = findCount('create_draft', 'succeeded');
-  activitySection.lines.push(`Connections sent: ${sentConnections}`);
-  activitySection.lines.push(`Drafts created: ${draftsCreated}`);
-
-  const limitsSection: SummarySection = {
-    title: 'Limits status (today)',
-    lines: [],
-  };
-
-  for (const item of activity.activities) {
-    const weeklyPart = item.weeklyLimit ? `, weekly ${item.weeklyCount}/${item.weeklyLimit}` : '';
-    limitsSection.lines.push(
-      `${item.type}: ${item.count}/${item.dailyLimit}${weeklyPart} (${item.status}, ${item.percentUsed}%)`
-    );
-  }
-
-  const deferredSection: SummarySection = {
-    title: 'Deferred to tomorrow',
-    lines: [
-      `Connection suggestions scheduled later: ${queued.future}`,
-    ],
-  };
-
-  const diagnosticsSection: SummarySection = {
-    title: 'Diagnostics',
-    lines: [
-      `Pending action records: ${pendingActions.length}`,
-    ],
-  };
-
-  return [pendingSection, activitySection, deferredSection, limitsSection, diagnosticsSection];
+  return lines.join('\n');
 }
 
-export async function postDailySummary(slackClient: WebClient, channelId: string, date: Date = new Date()): Promise<void> {
-  const sections = buildSummarySections(date);
-  const blocks: KnownBlock[] = [];
+async function draftCosStyleSummary(
+  llm: ResponsesAPIClient,
+  snapshot: SummarySnapshot
+): Promise<string> {
+  try {
+    const payload = {
+      date: snapshot.dateKey,
+      pending_meetings: snapshot.pendingMeetings.map((m) => ({
+        meeting_title: m.meeting_title,
+        recipient: m.recipient_name || m.recipient_email,
+        status: m.status,
+        surfaced_at: m.surfaced_at,
+      })),
+      queued_connections: snapshot.queued,
+      action_counts: snapshot.actionCounts,
+      pending_actions: snapshot.pendingActions.map((a) => ({
+        action_type: a.action_type,
+        entity_type: a.entity_type,
+        status: a.status,
+        created_at: a.created_at,
+      })),
+      activity: snapshot.activity,
+    };
 
-  blocks.push({
-    type: 'header',
-    text: { type: 'plain_text', text: `End of day summary (${date.toISOString().split('T')[0]})`, emoji: false },
-  });
-  blocks.push({ type: 'divider' });
+    const result = await generateContent(
+      {
+        systemPrompt: `You are a sharp chief of staff writing a brief end-of-day Slack update. Be crisp, prioritize what needs attention, skip noise, and keep it human. Use short sentences, no bullet spam. If nothing is urgent, say so.`,
+        userPrompt: `Here is today's operational state in JSON:\n${JSON.stringify(payload, null, 2)}\n\nWrite a short summary (3-6 lines). Emphasize what needs attention now. If limits are fine, just say pacing is fine. If there are failures or pending items, mention the top few with names. Avoid emojis.`,
+        maxTokens: 300,
+        effort: 'low',
+      },
+      llm
+    );
 
-  for (const section of sections) {
-    blocks.push(...formatSection(section));
+    return result.text?.trim() || fallbackText(snapshot);
+  } catch (error) {
+    console.error('[Summary] LLM generation failed, using fallback:', error);
+    return fallbackText(snapshot);
   }
+}
 
-  const text = sections
-    .map((s) => `${s.title}: ${s.lines.join(' | ')}`)
-    .join('\n');
+export async function postDailySummary(
+  slackClient: WebClient,
+  llm: ResponsesAPIClient,
+  channelId: string,
+  date: Date = new Date()
+): Promise<void> {
+  const snapshot = buildSnapshot(date);
+  const summaryText = await draftCosStyleSummary(llm, snapshot);
+
+  const blocks: KnownBlock[] = [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: summaryText },
+    },
+  ];
 
   await slackClient.chat.postMessage({
     channel: channelId,
-    text,
+    text: summaryText,
     blocks,
   });
 }
 
-export function registerSummaryCommand(app: App, channelId: string): void {
+export function registerSummaryCommand(app: App, llm: ResponsesAPIClient, channelId: string): void {
   app.command('/summary', async ({ ack, respond, client }) => {
     await ack();
 
@@ -147,7 +130,7 @@ export function registerSummaryCommand(app: App, channelId: string): void {
     });
 
     try {
-      await postDailySummary(client, channelId);
+      await postDailySummary(client, llm, channelId);
     } catch (error) {
       await respond({
         text: `Failed to post summary: ${error instanceof Error ? error.message : 'Unknown error'}`,
