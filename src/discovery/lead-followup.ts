@@ -18,10 +18,24 @@ import type { WebClient } from '@slack/web-api';
 import type { KnownBlock } from '@slack/bolt';
 import type { ResponsesAPIClient } from '../llm/responses.js';
 import {
-  getUnipileClient,
+  isUnipileConfigured,
   getActiveEmailAccountId,
-  type UnipileEmail,
-} from '../tools/unipile.js';
+  getEmails,
+  sendEmail,
+} from '../tools/unipile-sdk.js';
+
+// Type definition
+interface UnipileEmail {
+  id: string;
+  subject?: string;
+  from: { name?: string; email: string };
+  to: Array<{ name?: string; email: string }>;
+  cc?: Array<{ name?: string; email: string }>;
+  date?: string;
+  body?: string;
+  body_plain?: string;
+  thread_id?: string;
+}
 import {
   getAllActiveLeads,
   getLeadsByFollowUpStage,
@@ -32,7 +46,7 @@ import {
   markLeadCold,
   type SalesLead,
 } from '../db/sales-leads.js';
-import { LEAD_FOLLOWUP_PROMPT } from './prompts.js';
+import { LEAD_FOLLOWUP_PROMPT } from '../prompts/index.js';
 import { getContentGenerationConfig } from '../config/models.js';
 import { generateContent } from '../llm/content-generator.js';
 import { getEmailHistoryContext } from './meeting-followup.js';
@@ -74,10 +88,7 @@ const CADENCE = {
  * Returns leads where the recipient has replied
  */
 export async function detectResponses(): Promise<ResponseDetected[]> {
-  const client = getUnipileClient();
-  const emailAccountId = await getActiveEmailAccountId();
-
-  if (!client || !emailAccountId) {
+  if (!isUnipileConfigured()) {
     return [];
   }
 
@@ -88,34 +99,31 @@ export async function detectResponses(): Promise<ResponseDetected[]> {
     return [];
   }
 
-  console.log(`[LeadFollowup] Checking ${leadsWithThreads.length} threads for responses...`);
+  console.log(`[LeadFollowup] Checking ${leadsWithThreads.length} leads for responses...`);
 
   const responses: ResponseDetected[] = [];
 
   for (const lead of leadsWithThreads) {
     try {
-      const threadEmails = await client.getEmailThread({
-        account_id: emailAccountId,
-        thread_id: lead.email_thread_id!,
-      });
+      // Check for emails FROM this lead (their replies)
+      const recentEmails = await getEmails({
+        from: lead.email,
+        limit: 5,
+      }) as UnipileEmail[];
 
-      // Check if any email in thread is FROM the lead (not from us)
-      const responseEmail = threadEmails.find(email => {
-        const fromEmail = email.from?.email?.toLowerCase();
-        return fromEmail === lead.email.toLowerCase();
+      // Find any response newer than our last email
+      const lastEmailDate = lead.last_email_date ? new Date(lead.last_email_date) : null;
+      
+      const responseEmail = recentEmails.find(email => {
+        const responseDate = new Date(email.date || 0);
+        return !lastEmailDate || responseDate > lastEmailDate;
       });
 
       if (responseEmail) {
-        // Check if this response is newer than our last email
-        const responseDate = new Date(responseEmail.date);
-        const lastEmailDate = lead.last_email_date ? new Date(lead.last_email_date) : null;
-
-        if (!lastEmailDate || responseDate > lastEmailDate) {
-          responses.push({ lead, responseEmail });
-        }
+        responses.push({ lead, responseEmail });
       }
     } catch (error) {
-      console.error(`[LeadFollowup] Failed to check thread ${lead.email_thread_id}:`, error);
+      console.error(`[LeadFollowup] Failed to check lead ${lead.email}:`, error);
     }
   }
 

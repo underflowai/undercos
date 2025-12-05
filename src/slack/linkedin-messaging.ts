@@ -8,7 +8,12 @@
  */
 
 import type { App, BlockAction, ButtonAction, ViewSubmitAction } from '@slack/bolt';
-import { getUnipileClient, getActiveAccountId } from '../tools/unipile.js';
+import { 
+  isUnipileConfigured,
+  getActiveLinkedinAccountId,
+  sendMessage,
+  startNewChat,
+} from '../tools/unipile-sdk.js';
 import { openConversationModal, getConversationThread, buildConversationBlocks } from './conversations.js';
 
 /**
@@ -175,18 +180,13 @@ export function registerLinkedInMessagingHandlers(app: App): void {
         return;
       }
       
-      // Send the message via Unipile
-      const unipileClient = getUnipileClient();
-      
-      if (!unipileClient) {
+      // Send the message via Unipile SDK
+      if (!isUnipileConfigured()) {
         console.error('[LinkedIn] Unipile not configured');
         return;
       }
       
-      const result = await unipileClient.sendMessage({
-        chat_id: chatId,
-        text: message,
-      });
+      const result = await sendMessage(chatId, message);
       
       // Update the original Slack message to show reply was sent
       if (channelId && messageTs) {
@@ -292,10 +292,7 @@ export function registerLinkedInMessagingHandlers(app: App): void {
         return;
       }
       
-      const unipileClient = getUnipileClient();
-      const accountId = await getActiveAccountId();
-      
-      if (!unipileClient || !accountId) {
+      if (!isUnipileConfigured()) {
         console.error('[LinkedIn] Unipile not configured');
         return;
       }
@@ -304,17 +301,10 @@ export function registerLinkedInMessagingHandlers(app: App): void {
       
       if (chatId) {
         // Send to existing chat
-        result = await unipileClient.sendMessage({
-          chat_id: chatId,
-          text: message,
-        });
+        result = await sendMessage(chatId, message);
       } else if (providerId) {
         // Start new chat
-        result = await unipileClient.sendDirectMessage({
-          account_id: accountId,
-          attendee_provider_id: providerId,
-          text: message,
-        });
+        result = await startNewChat(providerId, message);
       } else {
         console.error('[LinkedIn] No chatId or providerId');
         return;

@@ -5,9 +5,13 @@
 import type { WebClient } from '@slack/web-api';
 import type { KnownBlock } from '@slack/bolt';
 import type { ResponsesAPIClient } from '../llm/responses.js';
-import { getUnipileClient, getActiveEmailAccountId } from '../tools/unipile.js';
+import { 
+  isUnipileConfigured,
+  getActiveEmailAccountId,
+  getEmails,
+} from '../tools/unipile-sdk.js';
 import type { DiscoveryConfig } from './config.js';
-import { FOLLOW_UP_EMAIL_PROMPT } from './prompts.js';
+import { FOLLOW_UP_EMAIL_PROMPT } from '../prompts/index.js';
 
 // Track seen meeting notes to avoid duplicates
 const seenMeetingNotes = new Set<string>();
@@ -118,10 +122,7 @@ export async function checkMeetingNotes(
   llm: ResponsesAPIClient,
   config: DiscoveryConfig
 ): Promise<MeetingNoteEmail[]> {
-  const client = getUnipileClient();
-  const emailAccountId = await getActiveEmailAccountId();
-
-  if (!client || !emailAccountId) {
+  if (!isUnipileConfigured()) {
     console.log('[EmailDiscovery] Email account not configured - skipping');
     return [];
   }
@@ -129,24 +130,28 @@ export async function checkMeetingNotes(
   console.log('[EmailDiscovery] Checking for new meeting notes...');
 
   try {
-    // Look for emails in a "Meeting Notes" folder or with meeting-related subjects
-    const emails = await client.getEmails({
-      account_id: emailAccountId,
+    // Look for emails in a "Meeting Notes" folder
+    const emails = await getEmails({
       folder: 'Meeting Notes',
       limit: 10,
-      unread_only: true,
-    });
+    }) as Array<{
+      id: string;
+      subject?: string;
+      from: { name?: string; email: string };
+      date?: string;
+      body?: string;
+    }>;
 
     // Filter out already processed
-    const newEmails = emails.filter(e => !seenMeetingNotes.has(e.id));
+    const newEmails = emails.filter((e: any) => !seenMeetingNotes.has(e.id));
 
     console.log(`[EmailDiscovery] Found ${newEmails.length} new meeting notes`);
 
-    return newEmails.map(e => ({
+    return newEmails.map((e: any) => ({
       id: e.id,
-      subject: e.subject,
+      subject: e.subject || '',
       from: e.from,
-      date: e.date,
+      date: e.date || '',
       body: e.body || '',
     }));
   } catch (error) {

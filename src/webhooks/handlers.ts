@@ -6,7 +6,12 @@
 
 import type { WebClient } from '@slack/web-api';
 import { env } from '../config/env.js';
-import { getUnipileClient, getActiveAccountId } from '../tools/unipile.js';
+import { 
+  isUnipileConfigured,
+  getActiveLinkedinAccountId,
+  getProfile,
+  getChatMessages,
+} from '../tools/unipile-sdk.js';
 import { getSentInvitation, removeSentInvitation } from '../tracking/invitations.js';
 
 // Slack client will be set when the webhook server is initialized

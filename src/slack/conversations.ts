@@ -6,7 +6,22 @@
 
 import type { WebClient } from '@slack/web-api';
 import type { KnownBlock, View } from '@slack/bolt';
-import { getUnipileClient, getActiveAccountId, type UnipileMessage } from '../tools/unipile.js';
+import { 
+  isUnipileConfigured,
+  getActiveLinkedinAccountId,
+  listChats,
+  getChatMessages,
+} from '../tools/unipile-sdk.js';
+
+// Type definition
+interface UnipileMessage {
+  id: string;
+  text?: string;
+  sender_id?: string;
+  sender_name?: string;
+  timestamp: string;
+  is_outbound?: boolean;
+}
 
 /**
  * Format a message for display in Slack
@@ -31,37 +46,23 @@ export async function getConversationThread(chatId: string): Promise<{
   messages: UnipileMessage[];
   formatted: string;
 }> {
-  const client = getUnipileClient();
-  const accountId = await getActiveAccountId();
-  
-  if (!client || !accountId) {
+  if (!isUnipileConfigured()) {
     return { messages: [], formatted: 'Unable to fetch conversation - Unipile not configured' };
   }
   
   try {
-    const messages = await client.getChatMessages({
-      chat_id: chatId,
-      limit: 20,
-    });
+    const messages = await getChatMessages(chatId, 20) as unknown as UnipileMessage[];
     
-    // Get my user ID to identify my messages
-    const accounts = await client.listAccounts();
-    const linkedInAccount = accounts.find(a => {
-      const accountObj = a as unknown as Record<string, unknown>;
-      const accountType = (accountObj.type || a.provider || '').toString().toUpperCase();
-      return accountType === 'LINKEDIN';
-    });
-    
-    // The account info might have the user ID
-    const myUserId = (linkedInAccount as unknown as Record<string, unknown>)?.user_id as string || '';
+    // Get my user ID (simplified - we'll mark outbound messages)
+    const myUserId = await getActiveLinkedinAccountId() || '';
     
     // Reverse to show oldest first
     const sortedMessages = [...messages].reverse();
     
     // Format messages for display
     const formatted = sortedMessages
-      .filter(msg => !msg.hidden && !msg.deleted)
-      .map(msg => formatMessage(msg, myUserId))
+      .filter((msg: any) => !msg.hidden && !msg.deleted)
+      .map((msg: any) => formatMessage(msg as UnipileMessage, myUserId))
       .join('\n\n---\n\n');
     
     return { messages: sortedMessages, formatted };

@@ -5,7 +5,12 @@
 import type { WebClient } from '@slack/web-api';
 import type { KnownBlock } from '@slack/bolt';
 import { ResponsesAPIClient } from '../llm/responses.js';
-import { getUnipileClient, getActiveAccountId } from '../tools/unipile.js';
+import { 
+  isUnipileConfigured,
+  getActiveLinkedinAccountId,
+  searchLinkedIn,
+  getLocationIds,
+} from '../tools/unipile-sdk.js';
 import type { DiscoveryConfig } from './config.js';
 import { shouldThrottle, recordActivity } from './activity-tracker.js';
 import { getContentGenerationConfig } from '../config/models.js';
@@ -17,7 +22,7 @@ import {
   COMMENT_GENERATION_PROMPT,
   formatPostForRelevanceCheck,
   formatPostForComment,
-} from './prompts.js';
+} from '../prompts/index.js';
 
 // Track seen posts to avoid duplicates
 const seenPosts = new Set<string>();
@@ -125,9 +130,6 @@ export async function discoverPosts(
     return [];
   }
 
-  const client = getUnipileClient();
-  const accountId = await getActiveAccountId();
-
   console.log('[PostDiscovery] Searching for posts...');
 
   // Generate search terms using AI
@@ -135,24 +137,24 @@ export async function discoverPosts(
 
   let posts: DiscoveredPost[] = [];
 
-  if (client && accountId) {
+  if (isUnipileConfigured()) {
     for (const keyword of searchTerms) {
       try {
         recordActivity('search');
-        const results = await client.searchPosts({
-          account_id: accountId,
+        const results = await searchLinkedIn({
+          category: 'posts',
           keywords: keyword,
           limit: 5,
-          datePosted: 'past_day',
+          date_posted: 'past_day',
         });
-        posts.push(...results.map(p => ({
+        posts.push(...results.items.map((p: any) => ({
           id: p.id,
           provider_id: p.provider_id,
           url: p.url,
-          author: p.author,
-          text: p.text,
-          likes_count: p.likes_count,
-          comments_count: p.comments_count,
+          author: p.author || { name: 'Unknown' },
+          text: p.text || '',
+          likes_count: p.likes_count || 0,
+          comments_count: p.comments_count || 0,
         })));
       } catch (error) {
         console.error(`[PostDiscovery] Search failed for "${keyword}":`, error);

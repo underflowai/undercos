@@ -31,6 +31,19 @@ const envSchema = z.object({
   WEBHOOK_URL: z.string().url().optional(), // Public URL for receiving webhooks (e.g., ngrok)
   WEBHOOK_SECRET: z.string().optional(), // Secret for webhook authentication
   WEBHOOK_PORT: z.string().default('3001').transform(Number),
+
+  // Logging
+  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+
+  // Safety / Config
+  DRY_RUN: z.string().optional().default('false'),
+  DRY_RUN_EMAIL: z.string().optional().default('false'),
+  DRY_RUN_LINKEDIN: z.string().optional().default('false'),
+  MAX_EMAILS_PER_DAY: z.string().optional().default('50'),
+  MAX_LINKEDIN_INVITES_PER_DAY: z.string().optional().default('20'),
+  MAX_LINKEDIN_MESSAGES_PER_DAY: z.string().optional().default('30'),
+  ENABLE_AUTO_FOLLOWUP: z.string().optional().default('false'),
+  ENABLE_AUTO_CONNECT: z.string().optional().default('false'),
 });
 
 function validateEnv() {
@@ -48,4 +61,3 @@ function validateEnv() {
 export const env = validateEnv();
 
 export type Env = typeof env;
-

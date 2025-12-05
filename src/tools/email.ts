@@ -10,10 +10,28 @@
 import { z } from 'zod';
 import type { ToolResult } from './types.js';
 import {
-  getUnipileClient,
+  isUnipileConfigured,
   getActiveEmailAccountId,
-  type UnipileEmail,
-} from './unipile.js';
+  getEmails,
+  getEmail as getEmailSdk,
+  sendEmail as sendEmailSdk,
+  getEmailFolders as getEmailFoldersSdk,
+  createEmailDraft,
+} from './unipile-sdk.js';
+
+// Type definition for email data
+interface UnipileEmail {
+  id: string;
+  subject?: string;
+  from: { name?: string; email: string };
+  to: Array<{ name?: string; email: string }>;
+  cc?: Array<{ name?: string; email: string }>;
+  date?: string;
+  body?: string;
+  body_plain?: string;
+  has_attachments?: boolean;
+  is_read?: boolean;
+}
 
 // =============================================================================
 // SCHEMAS
@@ -149,7 +167,7 @@ function parseMeetingNotes(email: UnipileEmail): ParsedMeetingNotes {
   }
 
   return {
-    title: email.subject,
+    title: email.subject || 'Untitled',
     date: email.date,
     attendees,
     keyPoints,
@@ -168,10 +186,7 @@ export const emailHandlers = {
    * Get meeting notes from a specific Gmail label
    */
   async getMeetingNotes(args: z.infer<typeof emailSchemas.getMeetingNotes>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveEmailAccountId();
-
-    if (!client || !accountId) {
+    if (!isUnipileConfigured()) {
       return {
         success: false,
         error: 'Email account not configured',
@@ -180,22 +195,21 @@ export const emailHandlers = {
 
     try {
       // Fetch emails from "Meeting Notes" label or INBOX
-      const emails = await client.getEmails({
-        account_id: accountId,
-        limit: args.limit,
-        folder: 'Meeting Notes', // Try custom label first
-        unread_only: args.unread_only,
-      }).catch(() => 
-        // Fallback to INBOX if label doesn't exist
-        client.getEmails({
-          account_id: accountId,
+      let emails: UnipileEmail[];
+      try {
+        emails = await getEmails({
+          folder: 'Meeting Notes',
           limit: args.limit,
+        }) as UnipileEmail[];
+      } catch {
+        // Fallback to INBOX if label doesn't exist
+        emails = await getEmails({
           folder: 'INBOX',
-          unread_only: args.unread_only,
-        })
-      );
+          limit: args.limit,
+        }) as UnipileEmail[];
+      }
 
-      const parsedNotes = emails.map(email => ({
+      const parsedNotes = emails.map((email: UnipileEmail) => ({
         id: email.id,
         ...parseMeetingNotes(email),
       }));
@@ -220,10 +234,7 @@ export const emailHandlers = {
    * Get a specific email
    */
   async getEmail(args: z.infer<typeof emailSchemas.getEmail>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveEmailAccountId();
-
-    if (!client || !accountId) {
+    if (!isUnipileConfigured()) {
       return {
         success: false,
         error: 'Email account not configured',
@@ -231,10 +242,14 @@ export const emailHandlers = {
     }
 
     try {
-      const email = await client.getEmail({
-        account_id: accountId,
-        email_id: args.emailId,
-      });
+      const email = await getEmailSdk(args.emailId) as UnipileEmail | null;
+      
+      if (!email) {
+        return {
+          success: false,
+          error: 'Email not found',
+        };
+      }
 
       return {
         success: true,
@@ -302,10 +317,7 @@ Underflow</p>
    * Send an email (should be called after approval)
    */
   async sendEmail(args: z.infer<typeof emailSchemas.sendEmail>): Promise<ToolResult & { emailId?: string; threadId?: string }> {
-    const client = getUnipileClient();
-    const accountId = await getActiveEmailAccountId();
-
-    if (!client || !accountId) {
+    if (!isUnipileConfigured()) {
       return {
         success: false,
         error: 'Email account not configured',
@@ -313,21 +325,21 @@ Underflow</p>
     }
 
     try {
-      const result = await client.sendEmail({
-        account_id: accountId,
+      const result = await sendEmailSdk({
         to: args.to,
         subject: args.subject,
         body: args.body,
-        reply_to_email_id: args.replyToEmailId,
+        replyTo: args.replyToEmailId,
       });
 
-      if (result.success) {
+      if (result.success && result.data) {
+        const data = result.data as any;
         return {
           success: true,
-          data: { emailId: result.email_id, threadId: result.thread_id },
+          data: { emailId: data.id, threadId: data.thread_id },
           message: 'Email sent successfully',
-          emailId: result.email_id,
-          threadId: result.thread_id,
+          emailId: data.id,
+          threadId: data.thread_id,
         };
       } else {
         return {
@@ -345,12 +357,10 @@ Underflow</p>
 
   /**
    * Create an email draft (instead of sending directly)
+   * Note: The SDK doesn't have a dedicated draft method, so we'll note this limitation
    */
   async createDraft(args: z.infer<typeof emailSchemas.createDraft>): Promise<ToolResult & { emailId?: string }> {
-    const client = getUnipileClient();
-    const accountId = await getActiveEmailAccountId();
-
-    if (!client || !accountId) {
+    if (!isUnipileConfigured()) {
       return {
         success: false,
         error: 'Email account not configured',
@@ -358,8 +368,7 @@ Underflow</p>
     }
 
     try {
-      const result = await client.createEmailDraft({
-        account_id: accountId,
+      const result = await createEmailDraft({
         to: args.to,
         subject: args.subject,
         body: args.body,
@@ -368,20 +377,20 @@ Underflow</p>
       if (result.success) {
         return {
           success: true,
-          data: { emailId: result.email_id },
-          message: 'Draft created in your inbox',
-          emailId: result.email_id,
-        };
-      } else {
-        return {
-          success: false,
-          error: result.error || 'Failed to create draft',
+          emailId: (result.data as any)?.id,
+          data: result.data,
+          message: 'Draft created',
         };
       }
+
+      return {
+        success: false,
+        error: result.error || 'Failed to create draft',
+      };
     } catch (error) {
       return {
         success: false,
-        error: `Failed to create draft: ${error instanceof Error ? error.message : 'Unknown'}`,
+        error: `Failed to create draft: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   },
@@ -391,36 +400,22 @@ Underflow</p>
    * This is a flexible search tool the agent can use to find relevant context.
    */
   async searchInbox(args: z.infer<typeof emailSchemas.searchInbox>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveEmailAccountId();
-
-    if (!client || !accountId) {
+    if (!isUnipileConfigured()) {
       return { success: false, error: 'Email account not configured' };
     }
 
     try {
-      let emails: UnipileEmail[] = [];
-
-      if (args.sender) {
-        // Search by sender
-        emails = await client.searchEmailsBySender({
-          account_id: accountId,
-          sender: args.sender,
-          limit: args.limit,
-        });
-      } else {
-        // Get recent inbox emails
-        emails = await client.getEmails({
-          account_id: accountId,
-          limit: args.limit,
-          folder: 'INBOX',
-        });
-      }
+      // Get emails with optional sender filter
+      let emails = await getEmails({
+        folder: 'INBOX',
+        from: args.sender,
+        limit: args.limit,
+      }) as UnipileEmail[];
 
       // Filter by query if provided
       if (args.query) {
         const query = args.query.toLowerCase();
-        emails = emails.filter(e => 
+        emails = emails.filter((e: UnipileEmail) => 
           (e.subject || '').toLowerCase().includes(query) ||
           (e.body_plain || '').toLowerCase().includes(query)
         );
@@ -429,7 +424,7 @@ Underflow</p>
       return {
         success: true,
         data: {
-          emails: emails.map(e => ({
+          emails: emails.map((e: UnipileEmail) => ({
             id: e.id,
             subject: e.subject,
             from: e.from,
@@ -453,35 +448,21 @@ Underflow</p>
    * Search sent emails
    */
   async searchSentEmails(args: z.infer<typeof emailSchemas.searchSentEmails>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveEmailAccountId();
-
-    if (!client || !accountId) {
+    if (!isUnipileConfigured()) {
       return { success: false, error: 'Email account not configured' };
     }
 
     try {
-      let emails: UnipileEmail[] = [];
-
-      if (args.recipient) {
-        emails = await client.searchEmailsToRecipient({
-          account_id: accountId,
-          recipient: args.recipient,
-          folder: 'SENT',
-          limit: args.limit,
-        });
-      } else {
-        emails = await client.getEmails({
-          account_id: accountId,
-          limit: args.limit,
-          folder: 'SENT',
-        });
-      }
+      let emails = await getEmails({
+        folder: 'SENT',
+        to: args.recipient,
+        limit: args.limit,
+      }) as UnipileEmail[];
 
       // Filter by query if provided
       if (args.query) {
         const query = args.query.toLowerCase();
-        emails = emails.filter(e => 
+        emails = emails.filter((e: UnipileEmail) => 
           (e.subject || '').toLowerCase().includes(query) ||
           (e.body_plain || '').toLowerCase().includes(query)
         );
@@ -490,7 +471,7 @@ Underflow</p>
       return {
         success: true,
         data: {
-          emails: emails.map(e => ({
+          emails: emails.map((e: UnipileEmail) => ({
             id: e.id,
             subject: e.subject,
             to: e.to,
@@ -512,24 +493,32 @@ Underflow</p>
    * Get full email history with a specific contact (both sent and received)
    */
   async getEmailHistoryWithContact(args: z.infer<typeof emailSchemas.getEmailHistoryWithContact>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveEmailAccountId();
-
-    if (!client || !accountId) {
+    if (!isUnipileConfigured()) {
       return { success: false, error: 'Email account not configured' };
     }
 
     try {
-      const emails = await client.getEmailHistoryWithContact({
-        account_id: accountId,
-        contactEmail: args.contactEmail,
-        limit: args.limit,
-      });
+      // Fetch emails from and to the contact
+      const [received, sent] = await Promise.all([
+        getEmails({
+          from: args.contactEmail,
+          limit: args.limit,
+        }),
+        getEmails({
+          to: args.contactEmail,
+          limit: args.limit,
+        }),
+      ]);
+
+      // Combine and sort by date
+      const allEmails = [...(received as UnipileEmail[]), ...(sent as UnipileEmail[])]
+        .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+        .slice(0, args.limit);
 
       return {
         success: true,
         data: {
-          emails: emails.map(e => ({
+          emails: allEmails.map((e: UnipileEmail) => ({
             id: e.id,
             subject: e.subject,
             from: e.from,
@@ -538,7 +527,7 @@ Underflow</p>
             direction: (e.from?.email || '').includes('underflow') ? 'sent' : 'received',
             body: e.body_plain || '',
           })),
-          count: emails.length,
+          count: allEmails.length,
           contactEmail: args.contactEmail,
         },
       };
@@ -554,10 +543,7 @@ Underflow</p>
    * List email folders
    */
   async listFolders(_args: z.infer<typeof emailSchemas.listFolders>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveEmailAccountId();
-
-    if (!client || !accountId) {
+    if (!isUnipileConfigured()) {
       return {
         success: false,
         error: 'Email account not configured',
@@ -565,12 +551,12 @@ Underflow</p>
     }
 
     try {
-      const folders = await client.getEmailFolders(accountId);
+      const folders = await getEmailFoldersSdk();
       
       return {
         success: true,
         data: {
-          folders: folders.map(f => ({
+          folders: folders.map((f: any) => ({
             id: f.id,
             name: f.name,
             type: f.type,

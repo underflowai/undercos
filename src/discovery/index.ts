@@ -46,4 +46,4 @@ export {
 } from './lead-followup.js';
 
 // Prompts (centralized)
-export * from './prompts.js';
+export * from '../prompts/index.js';

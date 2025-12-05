@@ -10,8 +10,8 @@
 import { ResponsesAPIClient, type FunctionTool, type ResponsesResult } from '../llm/responses.js';
 import { linkedinSchemas, linkedinHandlers, executeLinkedInAction } from '../tools/linkedin.js';
 import { emailSchemas, emailHandlers } from '../tools/email.js';
-import { isUnipileConfigured } from '../tools/unipile.js';
-import { LINKEDIN_SYSTEM_PROMPT } from './prompts.js';
+import { isUnipileConfigured } from '../tools/unipile-sdk.js';
+import { LINKEDIN_SYSTEM_PROMPT } from '../prompts/index.js';
 import type { ToolResult } from '../tools/types.js';
 
 // =============================================================================

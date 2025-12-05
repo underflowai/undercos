@@ -1,18 +1,54 @@
 import { z } from 'zod';
 import type { ToolResult } from './types.js';
 import { 
-  getUnipileClient, 
-  isUnipileConfigured, 
-  getActiveAccountId,
-  type UnipilePost,
-  type UnipileProfile,
-} from './unipile.js';
+  isUnipileConfigured,
+  getActiveLinkedinAccountId,
+  // SDK functions
+  searchLinkedIn,
+  getLocationIds,
+  getPost,
+  getProfile,
+  getPosts,
+  listChats,
+  sendInvitation,
+  commentOnPost as sdkCommentOnPost,
+  reactToPost as sdkReactToPost,
+  startNewChat,
+} from './unipile-sdk.js';
 import {
   canPerformAction,
   recordActivity,
   type ActivityType,
 } from '../discovery/activity-tracker.js';
 import { trackSentInvitation } from '../tracking/invitations.js';
+
+// Type definitions for LinkedIn data
+interface UnipilePost {
+  id: string;
+  provider_id?: string;
+  author: { id?: string; name: string; headline?: string; profile_url?: string };
+  text?: string;
+  url?: string;
+  likes_count?: number;
+  comments_count?: number;
+  reposts_count?: number;
+  created_at?: string;
+}
+
+interface UnipileProfile {
+  id: string;
+  provider_id?: string;
+  name: string;
+  first_name?: string;
+  last_name?: string;
+  headline?: string;
+  profile_url?: string;
+  location?: string;
+  company?: string;
+  connections_count?: number;
+  is_connection?: boolean;
+  about?: string;
+}
 
 /**
  * LinkedIn tool parameter schemas
@@ -177,42 +213,46 @@ export const linkedinHandlers = {
    * Search for posts by keywords
    */
   async searchPosts(args: z.infer<typeof linkedinSchemas.searchPosts>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveAccountId();
-    
     // Check search limits
     const searchCheck = canPerformAction('search');
     if (!searchCheck.allowed) {
       return { success: false, error: `⚠️ ${searchCheck.reason}. Try again later.` };
     }
     
-    if (client && accountId) {
+    if (isUnipileConfigured()) {
       try {
         const dateFilter = args.datePosted || 'past_week';
-        console.log(`[Unipile] Searching posts: ${args.keywords.join(', ')} (date: ${dateFilter}${args.locations?.length ? `, locations: ${args.locations.join(', ')}` : ''})`);
+        console.log(`[SDK] Searching posts: ${args.keywords.join(', ')} (date: ${dateFilter}${args.locations?.length ? `, locations: ${args.locations.join(', ')}` : ''})`);
+        
+        // Resolve location IDs if needed
+        let locationIds: string[] | undefined;
+        if (args.locations?.length) {
+          const allIds = await Promise.all(args.locations.map(loc => getLocationIds(loc)));
+          locationIds = allIds.flat();
+        }
         
         recordActivity('search');
-        const posts = await client.searchPosts({
-          account_id: accountId,
+        const result = await searchLinkedIn({
+          category: 'posts',
           keywords: args.keywords.join(' '),
           limit: args.limit,
-          locations: args.locations,
-          datePosted: dateFilter,
+          location: locationIds,
+          date_posted: dateFilter,
         });
         
-        console.log(`[Unipile] Found ${posts.length} posts`);
+        console.log(`[SDK] Found ${result.items.length} posts`);
         
         return {
           success: true,
           data: {
-            posts: posts.map(formatPost),
-            count: posts.length,
+            posts: result.items.map(formatPost),
+            count: result.items.length,
             keywords: args.keywords,
             source: 'unipile',
           },
         };
       } catch (error) {
-        console.error('[Unipile] Search failed, falling back to mock:', error);
+        console.error('[SDK] Search failed, falling back to mock:', error);
       }
     }
     
@@ -234,25 +274,21 @@ export const linkedinHandlers = {
    * Get post details
    */
   async getPostDetails(args: z.infer<typeof linkedinSchemas.getPostDetails>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveAccountId();
     const postId = extractPostId(args.postUrl);
     
-    if (client && accountId) {
+    if (isUnipileConfigured()) {
       try {
-        console.log(`[Unipile] Getting post: ${postId}`);
+        console.log(`[SDK] Getting post: ${postId}`);
         
-        const post = await client.getPost({
-          account_id: accountId,
-          post_id: postId,
-        });
-        
-        return {
-          success: true,
-          data: formatPost(post),
-        };
+        const post = await getPost(postId);
+        if (post) {
+          return {
+            success: true,
+            data: formatPost(post as UnipilePost),
+          };
+        }
       } catch (error) {
-        console.error('[Unipile] Get post failed:', error);
+        console.error('[SDK] Get post failed:', error);
       }
     }
     
@@ -313,25 +349,21 @@ export const linkedinHandlers = {
    * Get profile details
    */
   async getProfile(args: z.infer<typeof linkedinSchemas.getProfile>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveAccountId();
     const profileId = extractProfileId(args.profileUrl);
     
-    if (client && accountId) {
+    if (isUnipileConfigured()) {
       try {
-        console.log(`[Unipile] Getting profile: ${profileId}`);
+        console.log(`[SDK] Getting profile: ${profileId}`);
         
-        const profile = await client.getProfile({
-          account_id: accountId,
-          identifier: args.profileUrl,
-        });
-        
-        return {
-          success: true,
-          data: formatProfile(profile),
-        };
+        const profile = await getProfile(args.profileUrl);
+        if (profile) {
+          return {
+            success: true,
+            data: formatProfile(profile as unknown as UnipileProfile),
+          };
+        }
       } catch (error) {
-        console.error('[Unipile] Get profile failed:', error);
+        console.error('[SDK] Get profile failed:', error);
       }
     }
     
@@ -350,38 +382,42 @@ export const linkedinHandlers = {
    * Search for profiles
    */
   async searchProfiles(args: z.infer<typeof linkedinSchemas.searchProfiles>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveAccountId();
-    
     // Check search limits
     const searchCheck = canPerformAction('search');
     if (!searchCheck.allowed) {
       return { success: false, error: `⚠️ ${searchCheck.reason}. Try again later.` };
     }
     
-    if (client && accountId) {
+    if (isUnipileConfigured()) {
       try {
-        console.log(`[Unipile] Searching profiles: ${args.query}${args.locations?.length ? ` (locations: ${args.locations.join(', ')})` : ''}`);
+        console.log(`[SDK] Searching profiles: ${args.query}${args.locations?.length ? ` (locations: ${args.locations.join(', ')})` : ''}`);
+        
+        // Resolve location IDs if needed
+        let locationIds: string[] | undefined;
+        if (args.locations?.length) {
+          const allIds = await Promise.all(args.locations.map(loc => getLocationIds(loc)));
+          locationIds = allIds.flat();
+        }
         
         recordActivity('search');
-        const result = await client.searchUsers({
-          account_id: accountId,
-          query: args.query,
+        const result = await searchLinkedIn({
+          category: 'people',
+          keywords: args.query,
           limit: args.limit,
-          locations: args.locations,
+          location: locationIds,
         });
         
         return {
           success: true,
           data: {
-            profiles: result.items.map(formatProfile),
+            profiles: result.items.map((item: any) => formatProfile(item as UnipileProfile)),
             count: result.items.length,
             total: result.total,
             source: 'unipile',
           },
         };
       } catch (error) {
-        console.error('[Unipile] Search profiles failed:', error);
+        console.error('[SDK] Search profiles failed:', error);
       }
     }
     
@@ -447,25 +483,19 @@ export const linkedinHandlers = {
    * List recent chats
    */
   async listChats(args: z.infer<typeof linkedinSchemas.listChats>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveAccountId();
-    
-    if (client && accountId) {
+    if (isUnipileConfigured()) {
       try {
-        console.log(`[Unipile] Listing chats`);
+        console.log(`[SDK] Listing chats`);
         
-        const chats = await client.listChats({
-          account_id: accountId,
-          limit: args.limit,
-        });
+        const chats = await listChats(args.limit);
         
         return {
           success: true,
           data: {
-            chats: chats.map(chat => ({
+            chats: chats.map((chat: any) => ({
               id: chat.id,
               name: chat.name,
-              attendees: chat.attendees.map(a => a.name).join(', '),
+              attendees: (chat.attendees || []).map((a: any) => a.name).join(', '),
               lastMessage: chat.last_message?.text,
               unreadCount: chat.unread_count,
             })),
@@ -474,7 +504,7 @@ export const linkedinHandlers = {
           },
         };
       } catch (error) {
-        console.error('[Unipile] List chats failed:', error);
+        console.error('[SDK] List chats failed:', error);
       }
     }
     
@@ -494,29 +524,22 @@ export const linkedinHandlers = {
    * Get posts from a specific profile
    */
   async getProfilePosts(args: z.infer<typeof linkedinSchemas.getProfilePosts>): Promise<ToolResult> {
-    const client = getUnipileClient();
-    const accountId = await getActiveAccountId();
-    
-    if (client && accountId) {
+    if (isUnipileConfigured()) {
       try {
-        console.log(`[Unipile] Getting posts from: ${args.profileUrl}`);
+        console.log(`[SDK] Getting posts from: ${args.profileUrl}`);
         
-        const posts = await client.getPosts({
-          account_id: accountId,
-          identifier: args.profileUrl,
-          limit: args.limit,
-        });
+        const posts = await getPosts(args.profileUrl, args.limit);
         
         return {
           success: true,
           data: {
-            posts: posts.map(formatPost),
+            posts: posts.map((p: any) => formatPost(p as UnipilePost)),
             count: posts.length,
             source: 'unipile',
           },
         };
       } catch (error) {
-        console.error('[Unipile] Get profile posts failed:', error);
+        console.error('[SDK] Get profile posts failed:', error);
       }
     }
     
@@ -589,9 +612,6 @@ export async function executeLinkedInAction(
   args: Record<string, unknown>,
   editedDraft?: string
 ): Promise<{ success: boolean; message?: string; error?: string }> {
-  const client = getUnipileClient();
-  const accountId = await getActiveAccountId();
-  
   console.log(`[LinkedIn] Executing: ${action}`);
   
   // Check activity limits before executing
@@ -613,13 +633,9 @@ export async function executeLinkedInAction(
       const comment = editedDraft || (args.comment as string);
       const postId = args.postId as string;
       
-      if (client && accountId) {
+      if (isUnipileConfigured()) {
         try {
-          const response = await client.commentOnPost({
-            account_id: accountId,
-            post_id: postId,
-            text: comment,
-          });
+          const response = await sdkCommentOnPost(postId, comment);
           
           if (response.success) {
             recordActivity('comment');
@@ -642,15 +658,11 @@ export async function executeLinkedInAction(
     
     case 'like_post': {
       const postId = args.postId as string;
-      const reactionType = (args.reactionType as string) || 'LIKE';
+      const reactionType = ((args.reactionType as string) || 'LIKE').toLowerCase() as 'like' | 'celebrate' | 'support' | 'love' | 'insightful' | 'funny';
       
-      if (client && accountId) {
+      if (isUnipileConfigured()) {
         try {
-          const response = await client.reactToPost({
-            account_id: accountId,
-            post_id: postId,
-            reaction_type: reactionType as 'LIKE' | 'CELEBRATE' | 'SUPPORT' | 'LOVE' | 'INSIGHTFUL' | 'FUNNY',
-          });
+          const response = await sdkReactToPost(postId, reactionType);
           
           if (response.success) {
             recordActivity('like');
@@ -672,16 +684,24 @@ export async function executeLinkedInAction(
     }
     
     case 'send_connection_request': {
-      let profileId = args.profileId as string;
+      let profileId = args.profileId as string | undefined;
       const profileUrl = args.profileUrl as string | undefined;
       const profileName = args.profileName as string | undefined;
       const note = editedDraft || (args.note as string | undefined);
       
-      if (client && accountId) {
+      // Basic validation
+      if (!profileId && !profileUrl) {
+        return { success: false, error: 'No profile identifier provided' };
+      }
+      // Derive identifier from URL if needed
+      if (!profileId && profileUrl) {
+        profileId = profileUrl.replace('https://linkedin.com/in/', '');
+      }
+      
+      if (isUnipileConfigured()) {
         try {
           // LinkedIn invitations require the internal provider_id (format: ACoAAA...)
-          // If we have a public identifier (username), we need to fetch the profile first
-          const isProviderId = profileId.startsWith('ACoAAA') || profileId.startsWith('ACwAAA') || profileId.startsWith('AEMAA');
+          const isProviderId = profileId?.startsWith('ACoAAA') || profileId?.startsWith('ACwAAA') || profileId?.startsWith('AEMAA');
           
           if (!isProviderId) {
             console.log(`[LinkedIn] profileId "${profileId}" is not a provider_id, fetching profile first...`);
@@ -690,14 +710,11 @@ export async function executeLinkedInAction(
             const identifier = profileId || profileUrl?.replace('https://linkedin.com/in/', '');
             if (identifier) {
               try {
-                const profile = await client.getProfile({
-                  account_id: accountId,
-                  identifier,
-                });
+                const profile = await getProfile(identifier);
                 
-                if (profile?.provider_id) {
-                  console.log(`[LinkedIn] Resolved provider_id: ${profile.provider_id}`);
-                  profileId = profile.provider_id;
+                if (profile && (profile as any).provider_id) {
+                  console.log(`[LinkedIn] Resolved provider_id: ${(profile as any).provider_id}`);
+                  profileId = (profile as any).provider_id;
                 } else {
                   console.error('[LinkedIn] Profile fetch did not return provider_id');
                   return { success: false, error: 'Could not resolve LinkedIn provider ID. Try again.' };
@@ -714,13 +731,13 @@ export async function executeLinkedInAction(
             }
           }
           
+          if (!profileId) {
+            return { success: false, error: 'Unable to resolve profile ID' };
+          }
+          
           console.log(`[LinkedIn] Sending invitation to provider_id: ${profileId}`);
           
-          const response = await client.sendInvitation({
-            account_id: accountId,
-            provider_id: profileId,
-            message: note,
-          });
+          const response = await sendInvitation(profileId, note);
           
           if (response.success) {
             recordActivity('invitation');
@@ -756,13 +773,9 @@ export async function executeLinkedInAction(
       const profileId = args.profileId as string;
       const message = editedDraft || (args.message as string);
       
-      if (client && accountId) {
+      if (isUnipileConfigured()) {
         try {
-          const response = await client.sendDirectMessage({
-            account_id: accountId,
-            attendee_provider_id: profileId,
-            text: message,
-          });
+          const response = await startNewChat(profileId, message);
           
           if (response.success) {
             recordActivity('message');

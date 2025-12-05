@@ -5,7 +5,26 @@
 import type { WebClient } from '@slack/web-api';
 import type { KnownBlock } from '@slack/bolt';
 import { ResponsesAPIClient } from '../llm/responses.js';
-import { getUnipileClient, getActiveAccountId, type UnipileProfile } from '../tools/unipile.js';
+import { 
+  isUnipileConfigured,
+  getActiveLinkedinAccountId,
+  searchLinkedIn,
+  getProfile,
+  getLocationIds,
+} from '../tools/unipile-sdk.js';
+
+// Type definition for profile
+interface UnipileProfile {
+  id: string;
+  provider_id?: string;
+  name: string;
+  headline?: string;
+  company?: string;
+  location?: string;
+  profile_url?: string;
+  is_connection?: boolean;
+  about?: string;
+}
 import type { DiscoveryConfig } from './config.js';
 import { shouldThrottle, recordActivity } from './activity-tracker.js';
 import { getContentGenerationConfig } from '../config/models.js';
@@ -25,7 +44,7 @@ import {
   formatPersonForRelevanceCheck,
   formatProfileForConnectionNote,
   type RichProfile,
-} from './prompts.js';
+} from '../prompts/index.js';
 
 // Higher reasoning LLM for content generation (connection notes)
 let contentLLM: ResponsesAPIClient | null = null;
@@ -130,28 +149,24 @@ Return the JSON research findings.` },
  * Fetch full profile from Unipile and convert to RichProfile format
  */
 async function fetchFullProfile(profileId: string): Promise<RichProfile | null> {
-  const client = getUnipileClient();
-  const accountId = await getActiveAccountId();
-  
-  if (!client || !accountId) {
+  if (!isUnipileConfigured()) {
     console.log('[PeopleDiscovery] Cannot fetch full profile - Unipile not configured');
     return null;
   }
   
   try {
     console.log(`[PeopleDiscovery] Fetching full profile for ${profileId}...`);
-    const fullProfile = await client.getProfile({
-      account_id: accountId,
-      identifier: profileId,
-    });
+    const fullProfile = await getProfile(profileId) as any;
     
-    // Convert UnipileProfile to RichProfile
+    if (!fullProfile) return null;
+    
+    // Convert to RichProfile
     const richProfile: RichProfile = {
       name: fullProfile.name,
       headline: fullProfile.headline,
       company: fullProfile.company,
       location: fullProfile.location,
-      summary: fullProfile.about, // 'about' field contains the summary
+      summary: fullProfile.about,
     };
     
     console.log(`[PeopleDiscovery] Fetched profile: ${richProfile.name} (${richProfile.location || 'no location'})`);
@@ -392,40 +407,42 @@ export async function discoverPeople(
     return [];
   }
 
-  const client = getUnipileClient();
-  const accountId = await getActiveAccountId();
-  const targetCount = config.people.maxPeoplePerRun; // This is now a target, not a max
-  const maxSearchRounds = 3; // Don't search forever
+  const targetCount = config.people.maxPeoplePerRun;
+  const maxSearchRounds = 3;
 
   console.log(`[PeopleDiscovery] Searching for exactly ${targetCount} people...`);
 
   const relevantProfiles: DiscoveredProfile[] = [];
-  const seenInThisRun = new Set<string>(); // Track profiles seen this run to avoid re-checking
+  const seenInThisRun = new Set<string>();
 
   for (let round = 0; round < maxSearchRounds && relevantProfiles.length < targetCount; round++) {
-    // Generate fresh search queries each round
     const searchQueries = await generatePeopleSearchQueries(llm);
     
     let profiles: DiscoveredProfile[] = [];
 
-    if (client && accountId) {
-      const locations = config.people.targetLocations.length > 0 
-        ? config.people.targetLocations 
-        : undefined;
+    if (isUnipileConfigured()) {
+      // Get location IDs if specified
+      let locationIds: string[] | undefined;
+      if (config.people.targetLocations.length > 0) {
+        const allIds = await Promise.all(
+          config.people.targetLocations.map(loc => getLocationIds(loc))
+        );
+        locationIds = allIds.flat();
+      }
         
       for (const query of searchQueries) {
         if (relevantProfiles.length >= targetCount) break;
         
         try {
           recordActivity('search');
-          const result = await client.searchUsers({
-            account_id: accountId,
-            query,
-            limit: 10, // Get more results per query
-            locations,
+          const result = await searchLinkedIn({
+            category: 'people',
+            keywords: query,
+            limit: 10,
+            location: locationIds,
           });
           // Track which query found each profile
-          profiles.push(...result.items.map(p => ({
+          profiles.push(...result.items.map((p: any) => ({
             id: p.id,
             provider_id: p.provider_id,
             name: p.name,
@@ -433,7 +450,7 @@ export async function discoverPeople(
             profile_url: p.profile_url,
             company: p.company,
             is_connection: p.is_connection,
-            search_query: query, // Track the source query for learning
+            search_query: query,
           })));
         } catch (error) {
           console.error(`[PeopleDiscovery] Search failed for "${query}":`, error);
