@@ -26,6 +26,7 @@ import {
 import { getContentGenerationConfig } from '../../config/models.js';
 import { generateContent } from '../../llm/content-generator.js';
 import type { DiscoveryConfig } from '../config.js';
+import { getLatestAction } from '../../db/actions-log.js';
 
 import type {
   EndedMeeting,
@@ -573,6 +574,23 @@ export async function surfaceMeetingFollowUp(
         }
       } catch (error) {
         console.error('[Surfacing] Could not resolve provider_id for attendee', attendee.email, error);
+      }
+
+      // Skip if already connected or already attempted today
+      if (providerId) {
+        const existing = getLatestAction('send_connection_request', 'linkedin_profile', providerId);
+        if (existing && (existing.status === 'succeeded' || existing.status === 'pending')) {
+          continue;
+        }
+        try {
+          const { getProfile } = await import('../../tools/unipile-sdk.js');
+          const profile = await getProfile(providerId) as any;
+          if (profile?.is_connection) {
+            continue;
+          }
+        } catch (err) {
+          console.error('[Surfacing] Profile check failed', err);
+        }
       }
 
       const connectionBlocks = buildMeetingConnectionBlocks(meeting, attendee, {

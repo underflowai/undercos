@@ -38,6 +38,7 @@ import {
   getSeenProfilesCount,
   formatQueryFeedbackForAI,
 } from '../db/index.js';
+import { getLatestAction } from '../db/actions-log.js';
 import {
   PEOPLE_SEARCH_QUERIES_PROMPT,
   PERSON_RELEVANCE_PROMPT,
@@ -581,6 +582,18 @@ export async function surfacePerson(
     headline: profile.headline,
     company: profile.company,
   };
+
+  // Skip if already connected or recently attempted
+  if (profile.provider_id) {
+    const existing = getLatestAction('send_connection_request', 'linkedin_profile', profile.provider_id);
+    if (existing && (existing.status === 'succeeded' || existing.status === 'pending')) {
+      return;
+    }
+    const isConnected = (fullProfile as any)?.is_connection || profile.is_connection;
+    if (isConnected) {
+      return;
+    }
+  }
 
   // Generate brief about this person
   const brief = await generatePersonBrief(richProfile);
