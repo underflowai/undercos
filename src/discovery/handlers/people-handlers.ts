@@ -369,7 +369,7 @@ function buildRetryBlocks(params: {
       elements: [
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Mark as pending', emoji: false },
+          text: { type: 'plain_text', text: 'Mark Pending', emoji: false },
           action_id: 'discovery_mark_pending',
           value,
         },
