@@ -28,13 +28,48 @@ import { postToPostThread } from '../slack/post-thread.js';
 // Track seen posts to avoid duplicates
 const seenPosts = new Set<string>();
 
-// Static search terms for post discovery (avoid LLM-generated variability)
+// Static search terms for post discovery - targeting commercial insurance ecosystem
+// Carriers, wholesalers, MGAs, and adjacent players
 const STATIC_POST_SEARCH_TERMS = [
+  // Core commercial insurance
   'commercial insurance',
-  'wholesale broker',
-  'insurtech',
-  'underwriting',
+  'commercial lines',
+  'specialty insurance',
   'E&S insurance',
+  'excess surplus',
+  
+  // Wholesalers & distribution
+  'wholesale broker',
+  'wholesale insurance',
+  'surplus lines broker',
+  'program administrator',
+  
+  // MGAs and carriers
+  'MGA insurance',
+  'managing general agent',
+  'binding authority',
+  'delegated underwriting',
+  'program business',
+  
+  // Underwriting & operations
+  'commercial underwriting',
+  'submission clearance',
+  'loss runs',
+  'certificate of insurance',
+  
+  // Industry trends
+  'insurtech',
+  'insurance automation',
+  'hard market',
+  'rate increases',
+  
+  // Specific lines
+  'professional liability',
+  'D&O insurance',
+  'cyber insurance',
+  'construction insurance',
+  'transportation insurance',
+  'property insurance commercial',
 ];
 
 export interface DiscoveredPost {
