@@ -36,7 +36,7 @@ export function registerPeopleHandlers(app: App): void {
       if (result.success) {
         await updateMessage(client, channelId, messageTs, {
           text: `${baseText}: sent${data.draft ? ' (with note)' : ''}`,
-          blocks: buildStatusBlocks(baseText, data.draft),
+          blocks: buildStatusBlocks(baseText, data.draft, data.profileUrl),
         });
       } else {
         const errorText = result.error || 'Unknown error';
@@ -184,7 +184,7 @@ export function registerPeopleHandlers(app: App): void {
       if (result.success) {
         await updateMessage(client, meta.channelId, meta.messageTs, {
           text: `${baseText}: sent${note ? ' (with note)' : ''}`,
-          blocks: buildStatusBlocks(baseText, note),
+          blocks: buildStatusBlocks(baseText, note, meta.profileUrl),
         });
       } else {
         const errorText = result.error || 'Unknown error';
@@ -226,7 +226,7 @@ export function registerPeopleHandlers(app: App): void {
       if (result.success) {
         await updateMessage(client, channelId, messageTs, {
           text: `${baseText}: sent`,
-          blocks: buildStatusBlocks(baseText),
+          blocks: buildStatusBlocks(baseText, undefined, data.profileUrl),
         });
       } else {
         const errorText = result.error || 'Unknown error';
@@ -322,7 +322,7 @@ export function registerPeopleHandlers(app: App): void {
       if (result.success) {
         await updateMessage(client, meta.channelId, meta.messageTs, {
           text: `${baseText}: sent${note ? ' (with note)' : ''}`,
-          blocks: buildStatusBlocks(baseText, note),
+          blocks: buildStatusBlocks(baseText, note, profileUrl),
         });
       } else {
         const errorText = result.error || 'Unknown error';
@@ -379,7 +379,7 @@ function safeParseActionValue(raw?: string): any {
   }
 }
 
-function buildStatusBlocks(title: string, note?: string): KnownBlock[] {
+function buildStatusBlocks(title: string, note?: string, profileUrl?: string): KnownBlock[] {
   const blocks: KnownBlock[] = [
     {
       type: 'section',
@@ -392,6 +392,20 @@ function buildStatusBlocks(title: string, note?: string): KnownBlock[] {
     blocks.push({
       type: 'context',
       elements: [{ type: 'mrkdwn', text: `Note: ${trimmed}` }],
+    });
+  }
+
+  if (profileUrl) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'View Profile', emoji: false },
+          url: profileUrl,
+          action_id: 'discovery_view_profile',
+        },
+      ],
     });
   }
 
@@ -428,6 +442,12 @@ function buildRetryBlocks(params: {
           action_id: 'discovery_retry_connection_url',
           value,
         },
+        ...(params.profileUrl ? [{
+          type: 'button' as const,
+          text: { type: 'plain_text' as const, text: 'View Profile', emoji: false },
+          url: params.profileUrl,
+          action_id: 'discovery_view_profile',
+        }] : []),
         {
           type: 'button',
           text: { type: 'plain_text', text: 'Skip', emoji: false },
