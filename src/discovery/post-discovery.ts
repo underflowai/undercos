@@ -39,6 +39,22 @@ export interface DiscoveredPost {
   comments_count: number;
 }
 
+function getPostUrl(p: any): string | undefined {
+  const direct = p.url || p.webUrl || p.link;
+  if (direct) return direct;
+
+  const id = p.provider_id || p.id;
+  if (!id) return undefined;
+
+  const idStr = String(id);
+  if (idStr.includes('urn:li:activity:')) {
+    // If already an activity URN, use as-is
+    return `https://www.linkedin.com/feed/update/${idStr}`;
+  }
+  // Otherwise, wrap in activity URN form
+  return `https://www.linkedin.com/feed/update/urn:li:activity:${idStr}`;
+}
+
 /**
  * Generate search terms using AI
  */
@@ -154,7 +170,7 @@ export async function discoverPosts(
         posts.push(...results.items.map((p: any) => ({
           id: p.id,
           provider_id: p.provider_id,
-          url: p.url,
+          url: getPostUrl(p),
           author: p.author || { name: 'Unknown' },
           text: p.text || '',
           likes_count: p.likes_count || 0,
