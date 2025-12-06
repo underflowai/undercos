@@ -10,7 +10,6 @@ export function registerDiscoveryCommands(app: App, engine: DiscoveryEngine | nu
       return;
     }
 
-    await respond({ text: 'Running post discovery...', response_type: 'ephemeral' });
     try {
       await engine.triggerNow('posts');
     } catch (error) {
@@ -26,7 +25,6 @@ export function registerDiscoveryCommands(app: App, engine: DiscoveryEngine | nu
       return;
     }
 
-    await respond({ text: 'Running connection discovery...', response_type: 'ephemeral' });
     try {
       await engine.triggerNow('people');
     } catch (error) {
