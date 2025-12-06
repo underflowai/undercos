@@ -30,7 +30,6 @@ export {
   classifyMeeting,
   queueLinkedInConnectionForAttendee,
   generateFollowUpDraft,
-  generateFollowUpWithAgent,
   surfaceMeetingFollowUp,
   discoverMeetingFollowUps,
   runHistoricalBackfill,

@@ -4,7 +4,7 @@
  * Contains AI-driven functions that coordinate between modules:
  * - Meeting classification
  * - LinkedIn connection queueing
- * - Draft generation (two approaches)
+ * - Draft generation
  * - Slack surfacing
  * - Main discovery loop
  */
@@ -12,7 +12,6 @@
 import type { WebClient } from '@slack/web-api';
 import type { KnownBlock } from '@slack/bolt';
 import type { ResponsesAPIClient } from '../../llm/responses.js';
-import { ResponsesRouter } from '../../agent/responses-router.js';
 import {
   markMeetingSurfaced,
   hasMeetingBeenProcessed,
@@ -371,81 +370,6 @@ Let me know if you have any questions.
 Best,
 Ola`,
     };
-  }
-}
-
-/**
- * Generate a follow-up email using an agent that reasons and searches for context
- */
-export async function generateFollowUpWithAgent(
-  llm: ResponsesAPIClient,
-  meeting: EndedMeeting,
-  notes: MeetingNotes
-): Promise<{ to: string[]; subject: string; body: string; contextGathered?: string }> {
-  const primaryRecipient = meeting.attendees.find(a => a.isExternal);
-  if (!primaryRecipient) {
-    throw new Error('No external attendees found');
-  }
-
-  const toAddresses = meeting.attendees
-    .filter(a => a.isExternal)
-    .map(a => a.email);
-
-  console.log(`[AgentGen] Using agent for "${meeting.title}"`);
-
-  const router = new ResponsesRouter(llm);
-
-  const agentMessage = `I just had a meeting that I need to follow up on.
-
-MEETING DETAILS:
-- Title: ${meeting.title}
-- Date: ${meeting.endTime.toLocaleDateString()}
-- Primary recipient: ${primaryRecipient.name || 'Unknown'} (${primaryRecipient.email})
-
-MEETING NOTES:
-${notes.body}
-
-KEY POINTS: ${notes.keyPoints.join(', ') || 'None'}
-ACTION ITEMS: ${notes.actionItems.join(', ') || 'None'}
-
-Please search for context and draft a follow-up email.`;
-
-  try {
-    const result = await router.process(agentMessage, {
-      threadTs: `meeting_${meeting.id}`,
-      channelId: 'agent',
-      userId: 'system',
-    });
-
-    const cleanText = (text: string) => text.replace(/—/g, '-').replace(/–/g, '-').trim();
-    const response = result.response.trim();
-
-    // Try to parse JSON response
-    const tryParse = (text: string) => { try { return JSON.parse(text); } catch { return null; } };
-    
-    let parsed = tryParse(response);
-    if (!parsed) {
-      const codeBlockMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (codeBlockMatch) parsed = tryParse(codeBlockMatch[1]);
-    }
-
-    if (parsed?.email?.subject && parsed?.email?.body) {
-      return {
-        to: parsed.email.to || toAddresses,
-        subject: cleanText(parsed.email.subject),
-        body: cleanText(parsed.email.body),
-        contextGathered: parsed.context ? cleanText(parsed.context) : undefined,
-      };
-    }
-
-    return {
-      to: toAddresses,
-      subject: `Underflow - ${meeting.title}`,
-      body: cleanText(response),
-    };
-  } catch (error) {
-    console.error('[AgentGen] Failed, falling back:', error);
-    return generateFollowUpDraft(llm, meeting, notes);
   }
 }
 
