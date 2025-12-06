@@ -445,14 +445,15 @@ export async function discoverPeople(
             location: locationIds,
           });
           // Track which query found each profile
+          // Note: Unipile returns id as the provider_id (ACoAAA...), public_identifier as the slug
           profiles.push(...result.items.map((p: any) => ({
-            id: p.id,
-            provider_id: p.provider_id,
+            id: p.public_identifier || p.id, // Use slug for deduplication
+            provider_id: p.id, // The ACoAAA... ID needed for invitations
             name: p.name,
             headline: p.headline,
             profile_url: p.profile_url,
             company: p.company,
-            is_connection: p.is_connection,
+            is_connection: p.network_distance === 'DISTANCE_1', // 1st degree = connected
             search_query: query,
           })));
         } catch (error) {
