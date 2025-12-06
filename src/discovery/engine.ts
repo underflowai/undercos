@@ -44,6 +44,7 @@ import { discoverMeetingFollowUps, runHistoricalBackfill } from './meeting/index
 
 import { postDailySummary } from '../slack/summary.js';
 import { resetConnectionThread } from '../slack/connection-thread.js';
+import { resetPostThread } from '../slack/post-thread.js';
 
 /**
  * Discovery Engine - the main orchestrator
@@ -166,6 +167,9 @@ export class DiscoveryEngine {
    */
   private async runPostDiscovery(): Promise<void> {
     const config = getDiscoveryConfig();
+    
+    // Start a fresh thread for this run
+    resetPostThread();
     
     try {
       const posts = await discoverPosts(this.llm, config);

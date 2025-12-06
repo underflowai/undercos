@@ -24,6 +24,7 @@ import {
   formatPostForRelevanceCheck,
   formatPostForComment,
 } from '../prompts/index.js';
+import { postToPostThread } from '../slack/post-thread.js';
 
 // Track seen posts to avoid duplicates
 const seenPosts = new Set<string>();
@@ -309,8 +310,7 @@ export async function surfacePost(
     },
   ];
 
-  await slackClient.chat.postMessage({
-    channel: config.slack.channelId,
+  await postToPostThread(slackClient, config.slack.channelId, {
     text: `Found a relevant post by ${post.author.name}`,
     blocks,
   });
