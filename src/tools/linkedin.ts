@@ -727,25 +727,33 @@ export async function executeLinkedInAction(
     case 'comment_on_post': {
       const comment = editedDraft || (args.comment as string);
       const postId = args.postId as string;
-      
+
+      if (!postId) {
+        return { success: false, error: 'Missing post ID for comment' };
+      }
+
       if (isUnipileConfigured()) {
         try {
           const response = await sdkCommentOnPost(postId, comment);
-          
+
           if (response.success) {
             recordActivity('comment');
             return { success: true, message: ' Comment posted via Unipile!' };
           } else {
-            return { success: false, error: response.error || 'Failed to post comment' };
+            const errMsg = response.error || 'Failed to post comment (no error message)';
+            console.error('[LinkedIn] Comment failed', { postId, postUrl: args.postUrl, error: errMsg });
+            return { success: false, error: `Failed to post comment: ${errMsg}` };
           }
         } catch (error) {
+          const errMsg = error instanceof Error ? error.message : 'Unknown error';
+          console.error('[LinkedIn] Comment error', { postId, postUrl: args.postUrl, error: errMsg });
           return { 
             success: false, 
-            error: `Unipile error: ${error instanceof Error ? error.message : 'Unknown error'}` 
+            error: `Unipile error posting comment: ${errMsg}` 
           };
         }
       }
-      
+
       recordActivity('comment');
       console.log(`[Mock] Posted comment on ${postId}: ${comment}`);
       return { success: true, message: '[Mock] Comment posted!' };
