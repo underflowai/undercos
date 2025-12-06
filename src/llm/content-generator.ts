@@ -122,7 +122,9 @@ export async function generateContent(
   }
   
   // Use OpenAI (either as primary or fallback)
-  console.log(`[ContentGen] Using OpenAI for content generation`);
+  // When falling back from Claude, use high reasoning to match Claude's effort
+  const reasoningEffort = options.effort === 'high' ? 'high' : (config.reasoningEffort || 'high');
+  console.log(`[ContentGen] Using OpenAI for content generation (reasoning: ${reasoningEffort})`);
   
   const input = [
     { type: 'message' as const, role: 'system' as const, content: systemPromptWithDate },
@@ -130,7 +132,7 @@ export async function generateContent(
   ];
   
   const response = await openaiClient.createResponse(input, [], {
-    reasoningEffort: config.reasoningEffort || 'high',
+    reasoningEffort,
   });
   
   return {
