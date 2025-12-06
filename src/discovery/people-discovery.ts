@@ -542,7 +542,7 @@ function buildConnectionBlocks(
               {
                 type: 'button' as const,
                 text: { type: 'plain_text' as const, text: 'Send without note', emoji: false },
-                action_id: 'discovery_connect_approve',
+                action_id: 'discovery_connect_no_note',
                 value: JSON.stringify({ profileId: profile.provider_id, profileUrl: profile.profile_url, profileName: profile.name, draft: '' }),
               },
             ]
@@ -582,10 +582,13 @@ export async function surfacePerson(
 ): Promise<void> {
   // Fetch full profile for better context
   const fullProfile = await fetchFullProfile(profile.id);
-  const richProfile: RichProfile = fullProfile || {
-    name: profile.name,
-    headline: profile.headline,
-    company: profile.company,
+  // Always use original profile.name as fallback (Unipile sometimes returns profile without name)
+  const richProfile: RichProfile = {
+    name: fullProfile?.name || profile.name,
+    headline: fullProfile?.headline || profile.headline,
+    company: fullProfile?.company || profile.company,
+    location: fullProfile?.location,
+    summary: fullProfile?.summary,
   };
 
   // Skip if already connected or recently attempted
