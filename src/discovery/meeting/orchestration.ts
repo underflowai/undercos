@@ -229,6 +229,19 @@ Generate a brief, personalized LinkedIn connection note (max 200 chars).`;
   }
 }
 
+// Email signature - appended to all generated drafts
+const EMAIL_SIGNATURE = `
+
+Ola Kolade
+Co-Founder, CEO
+useunderflow.com | 415-283-9118`;
+
+function appendSignature(body: string): string {
+  // Don't double-add signature
+  if (body.includes('useunderflow.com')) return body;
+  return body.trim() + EMAIL_SIGNATURE;
+}
+
 export async function generateFollowUpDraft(
   llm: ResponsesAPIClient,
   meeting: EndedMeeting,
@@ -351,7 +364,7 @@ Return the follow-up email.`;
           const context = args.context;
           const to = Array.isArray(args.to) && args.to.length > 0 ? args.to : toAddresses;
           if (subject && body) {
-            return { to, subject, body, context };
+            return { to, subject, body: appendSignature(body), context };
           }
         }
       } catch (err) {
@@ -379,7 +392,7 @@ Return the follow-up email.`;
         const context = args?.context;
         const to = Array.isArray(args?.to) && args.to.length > 0 ? args.to : toAddresses;
         if (subject && body) {
-          return { to, subject, body, context };
+          return { to, subject, body: appendSignature(body), context };
         }
       }
       return null;
@@ -422,7 +435,7 @@ Return the follow-up email.`;
           return {
             to: parsed.email.to || toAddresses,
             subject: parsed.email.subject,
-            body: parsed.email.body,
+            body: appendSignature(parsed.email.body),
             context: parsed.context,
           };
         }
@@ -432,7 +445,7 @@ Return the follow-up email.`;
           return {
             to: toAddresses,
             subject: parsed.subject,
-            body: parsed.body,
+            body: appendSignature(parsed.body),
             context: parsed.context,
           };
         }
@@ -463,32 +476,27 @@ Return the follow-up email.`;
     if (fallbackBody.includes('<') || fallbackBody.includes('{"') || fallbackBody.includes('tool_calls') || fallbackBody.length < 20) {
       fallbackBody = `Hi ${primaryRecipient.name?.split(' ')[0] || 'there'},
 
-Great connecting today. Let me know if you have any questions about what we discussed.
-
-Best,
-Ola`;
+Great connecting today. Let me know if you have any questions about what we discussed.`;
     }
     
     return {
       to: toAddresses,
       subject: `Following up: ${meeting.title}`,
-      body: fallbackBody,
+      body: appendSignature(fallbackBody),
     };
   } catch (error) {
     console.error('[DraftGen] Failed:', error);
-    return {
-      to: toAddresses,
-      subject: `Following up: ${meeting.title}`,
-      body: `Hi ${primaryRecipient.name?.split(' ')[0] || 'there'},
+    const fallback = `Hi ${primaryRecipient.name?.split(' ')[0] || 'there'},
 
 Great speaking with you today. Here are the key points:
 
 ${notes.keyPoints.map(p => `• ${p}`).join('\n')}
 
-Let me know if you have any questions.
-
-Best,
-Ola`,
+Let me know if you have any questions.`;
+    return {
+      to: toAddresses,
+      subject: `Following up: ${meeting.title}`,
+      body: appendSignature(fallback),
     };
   }
 }
