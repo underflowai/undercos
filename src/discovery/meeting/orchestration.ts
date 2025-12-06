@@ -322,7 +322,7 @@ Return the follow-up email.`;
         const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
         const claudeResponse = await anthropic.messages.create({
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-opus-4-5-20251101',
           system: MEETING_FOLLOWUP_PROMPT,
           messages: [{ role: 'user', content: userPrompt }],
           tools: [{
