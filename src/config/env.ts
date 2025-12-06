@@ -36,7 +36,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
   // Timezone (for date context in LLM prompts)
-  TIMEZONE: z.string().default('America/New_York'),
+  // Auto-detects from system if not set, defaults to America/Los_Angeles
+  TIMEZONE: z.string().default(Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles'),
 
   // Safety / Config
   DRY_RUN: z.string().optional().default('false'),
