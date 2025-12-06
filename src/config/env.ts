@@ -35,6 +35,9 @@ const envSchema = z.object({
   // Logging
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
+  // Timezone (for date context in LLM prompts)
+  TIMEZONE: z.string().default('America/New_York'),
+
   // Safety / Config
   DRY_RUN: z.string().optional().default('false'),
   DRY_RUN_EMAIL: z.string().optional().default('false'),

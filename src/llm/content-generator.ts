@@ -17,6 +17,7 @@
 import { getContentGenerationConfig, type ModelConfig } from '../config/models.js';
 import { getClaudeClient, type ClaudeEffort } from './anthropic.js';
 import type { ResponsesAPIClient } from './responses.js';
+import { env } from '../config/env.js';
 
 // =============================================================================
 // DATE CONTEXT
@@ -24,6 +25,7 @@ import type { ResponsesAPIClient } from './responses.js';
 
 /**
  * Generate current date/time context for LLM prompts
+ * Uses TIMEZONE env var (defaults to America/New_York)
  */
 export function getDateContext(): string {
   const now = new Date();
@@ -34,9 +36,10 @@ export function getDateContext(): string {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: env.TIMEZONE,
     timeZoneName: 'short',
   };
-  const formatted = now.toLocaleDateString('en-US', options);
+  const formatted = now.toLocaleString('en-US', options);
   return `Current date/time: ${formatted}`;
 }
 
