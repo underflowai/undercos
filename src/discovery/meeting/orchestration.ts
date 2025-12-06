@@ -279,7 +279,7 @@ ${e.body}
       webContext = '';
     }
 
-    // Stage 2: Generate email with a structured tool call (forces JSON shape)
+    // Stage 2: Generate email (try Anthropic tools first if available, then fallback to OpenAI tools)
     console.log(`[DraftGen] Stage 2: Generating email...`);
     
     const userPrompt = `Meeting: ${meeting.title}
@@ -315,6 +315,51 @@ Return the follow-up email.`;
       },
     };
 
+    // --- Anthropic tool call (if key present) ---
+    if (process.env.ANTHROPIC_API_KEY) {
+      try {
+        const { default: Anthropic } = await import('@anthropic-ai/sdk');
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+        const claudeResponse = await anthropic.messages.create({
+          model: 'claude-3-5-sonnet-20241022',
+          system: MEETING_FOLLOWUP_PROMPT,
+          messages: [{ role: 'user', content: userPrompt }],
+          tools: [{
+            name: 'draft_followup_email',
+            description: 'Return a follow-up email for the meeting.',
+            input_schema: {
+              type: 'object',
+              properties: {
+                to: { type: 'array', items: { type: 'string' } },
+                subject: { type: 'string' },
+                body: { type: 'string' },
+                context: { type: 'string' },
+              },
+              required: ['subject', 'body'],
+            },
+          }],
+          tool_choice: { type: 'auto' },
+          max_tokens: 1024,
+        });
+
+        const toolUse = claudeResponse.content.find((c: any) => c.type === 'tool_use');
+        if (toolUse) {
+          const args = (toolUse as any).input || {};
+          const subject = args.subject;
+          const body = args.body;
+          const context = args.context;
+          const to = Array.isArray(args.to) && args.to.length > 0 ? args.to : toAddresses;
+          if (subject && body) {
+            return { to, subject, body, context };
+          }
+        }
+      } catch (err) {
+        console.warn('[DraftGen] Anthropic tool call failed, falling back to OpenAI tools:', err instanceof Error ? err.message : err);
+      }
+    }
+
+    // --- OpenAI Responses API tool call ---
     const input = [
       { type: 'message' as const, role: 'system' as const, content: MEETING_FOLLOWUP_PROMPT },
       { type: 'message' as const, role: 'user' as const, content: userPrompt },
