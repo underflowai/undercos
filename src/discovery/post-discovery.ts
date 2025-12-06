@@ -56,6 +56,7 @@ const STATIC_POST_SEARCH_TERMS = [
   'submission clearance',
   'loss runs',
   'certificate of insurance',
+  'subjectivities',
   
   // Industry trends
   'insurtech',

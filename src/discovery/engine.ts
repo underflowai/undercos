@@ -11,7 +11,7 @@
 import type { WebClient } from '@slack/web-api';
 import type { ResponsesAPIClient } from '../llm/responses.js';
 import { getDiscoveryConfig, type DiscoveryConfig } from './config.js';
-import { scheduleTask, getSchedulerStatus, isWithinActiveHours } from './scheduler.js';
+import { scheduleTask, getSchedulerStatus } from './scheduler.js';
 import { getActivitySummary, formatActivitySummaryForSlack } from './activity-tracker.js';
 
 // Post discovery
@@ -114,18 +114,14 @@ export class DiscoveryEngine {
     this.isRunning = true;
     console.log('[Discovery] Engine started');
 
-    // Run initial LinkedIn discovery after short delays (only during active hours)
-    if (isWithinActiveHours()) {
-      setTimeout(() => {
-        if (config.posts.enabled) this.runPostDiscovery();
-      }, 5000);
+    // Run initial discovery after short delays (slash command driven, no active hours check)
+    setTimeout(() => {
+      if (config.posts.enabled) this.runPostDiscovery();
+    }, 5000);
 
-      setTimeout(() => {
-        if (config.people.enabled) this.runPeopleDiscovery();
-      }, 15000);
-    } else {
-      console.log('[Discovery] Outside active hours (9am-6pm Mon-Fri) - skipping LinkedIn discovery');
-    }
+    setTimeout(() => {
+      if (config.people.enabled) this.runPeopleDiscovery();
+    }, 15000);
 
     // Email follow-ups run regardless of active hours
     // Run historical backfill on startup to catch any missed meetings

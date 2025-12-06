@@ -1,5 +1,3 @@
-import { getDiscoveryConfig } from './config.js';
-
 type ScheduledTask = {
   id: string;
   name: string;
@@ -11,22 +9,6 @@ type ScheduledTask = {
 };
 
 const tasks: Map<string, ScheduledTask> = new Map();
-
-/**
- * Check if we're within active hours
- */
-export function isWithinActiveHours(): boolean {
-  const config = getDiscoveryConfig();
-  const now = new Date();
-  const hour = now.getHours();
-  const day = now.getDay();
-
-  const withinHours = hour >= config.schedule.activeHoursStart && 
-                      hour < config.schedule.activeHoursEnd;
-  const withinDays = config.schedule.activeDays.includes(day);
-
-  return withinHours && withinDays;
-}
 
 /**
  * Schedule a recurring task
@@ -55,13 +37,8 @@ export function scheduleTask(
     timer: null,
   };
 
-  // Create the interval
+  // Create the interval (no active hours check - slash command triggered)
   task.timer = setInterval(async () => {
-    if (!isWithinActiveHours()) {
-      console.log(`[Scheduler] Skipping ${name} - outside active hours`);
-      return;
-    }
-
     console.log(`[Scheduler] Running: ${name}`);
     task.lastRun = new Date();
     task.nextRun = new Date(Date.now() + intervalMs);
