@@ -44,6 +44,7 @@ export function registerPeopleHandlers(app: App): void {
           text: `${baseText}: failed – ${errorText}`,
           blocks: buildRetryBlocks({
             title: `${baseText}: failed – ${errorText}`,
+            profileId: data.profileId,
             profileUrl: data.profileUrl,
             note: data.draft,
             personName: data.profileName,
@@ -192,6 +193,7 @@ export function registerPeopleHandlers(app: App): void {
           text: `${baseText}: failed – ${errorText}`,
           blocks: buildRetryBlocks({
             title: `${baseText}: failed – ${errorText}`,
+            profileId: meta.profileId,
             profileUrl: meta.profileUrl,
             note,
             personName: meta.profileName,
@@ -234,6 +236,7 @@ export function registerPeopleHandlers(app: App): void {
           text: `${baseText}: failed – ${errorText}`,
           blocks: buildRetryBlocks({
             title: `${baseText}: failed – ${errorText}`,
+            profileId: data.profileId,
             profileUrl: data.profileUrl,
             personName: data.profileName,
             channelId,
@@ -244,102 +247,6 @@ export function registerPeopleHandlers(app: App): void {
     }
   });
 
-
-  // Retry with URL (opens modal)
-  app.action<BlockAction<ButtonAction>>('discovery_retry_connection_url', async ({ ack, body, client }) => {
-    await ack();
-
-    const data = safeParseActionValue(body.actions?.[0]?.value);
-    const channelId = body.channel?.id || data.channelId || '';
-    const messageTs = body.message?.ts || data.messageTs || '';
-
-    await client.views.open({
-      trigger_id: body.trigger_id,
-      view: {
-        type: 'modal',
-        callback_id: 'discovery_retry_connection_submit',
-        private_metadata: JSON.stringify({
-          profileUrl: data.profileUrl,
-          note: data.note,
-          personName: data.personName,
-          channelId,
-          messageTs,
-        }),
-        title: { type: 'plain_text', text: 'Retry Connection' },
-        submit: { type: 'plain_text', text: 'Retry' },
-        close: { type: 'plain_text', text: 'Cancel' },
-        blocks: [
-          {
-            type: 'input',
-            block_id: 'url_block',
-            element: {
-              type: 'plain_text_input',
-              action_id: 'url_input',
-              initial_value: data.profileUrl || '',
-              placeholder: { type: 'plain_text', text: 'https://www.linkedin.com/in/...' },
-            },
-            label: { type: 'plain_text', text: 'LinkedIn profile URL' },
-          },
-          {
-            type: 'input',
-            block_id: 'note_block',
-            element: {
-              type: 'plain_text_input',
-              action_id: 'note_input',
-              multiline: true,
-              initial_value: data.note || '',
-              max_length: 300,
-              placeholder: { type: 'plain_text', text: 'Optional connection note' },
-            },
-            label: { type: 'plain_text', text: 'Note (optional)' },
-            optional: true,
-          },
-        ],
-      },
-    });
-  });
-
-  // Submit retry with URL
-  app.view('discovery_retry_connection_submit', async ({ ack, view, client }) => {
-    await ack();
-
-    const meta = JSON.parse(view.private_metadata || '{}');
-    const profileUrl = view.state.values.url_block?.url_input?.value || meta.profileUrl || '';
-    const note = view.state.values.note_block?.note_input?.value || meta.note || '';
-    const baseText = meta.personName ? `Connection for ${meta.personName}` : 'Connection request';
-
-    const result = await executeLinkedInAction('send_connection_request', {
-      profileUrl,
-      note,
-    }, note);
-
-    if (result.success && profileUrl) {
-      const publicId = profileUrl.replace('https://linkedin.com/in/', '');
-      recordProfileAction(publicId, 'approved', note);
-    }
-
-    if (meta.channelId && meta.messageTs) {
-      if (result.success) {
-        await updateMessage(client, meta.channelId, meta.messageTs, {
-          text: `${baseText}: sent${note ? ' (with note)' : ''}`,
-          blocks: buildStatusBlocks(baseText, note, profileUrl),
-        });
-      } else {
-        const errorText = result.error || 'Unknown error';
-        await updateMessage(client, meta.channelId, meta.messageTs, {
-          text: `${baseText}: failed – ${errorText}`,
-          blocks: buildRetryBlocks({
-            title: `${baseText}: failed – ${errorText}`,
-            profileUrl,
-            note,
-            personName: meta.personName,
-            channelId: meta.channelId,
-            messageTs: meta.messageTs,
-          }),
-        });
-      }
-    }
-  });
 
   // Skip a discovered person
   app.action<BlockAction<ButtonAction>>('discovery_skip_person', async ({ ack, body, client }) => {
@@ -363,6 +270,28 @@ export function registerPeopleHandlers(app: App): void {
           title: `Skipped sending connection request to ${profileName}`,
           profileUrl,
         }),
+      });
+    }
+  });
+
+  // Mark as pending (already attempted)
+  app.action<BlockAction<ButtonAction>>('discovery_mark_pending', async ({ ack, body, client }) => {
+    await ack();
+
+    const data = safeParseActionValue(body.actions?.[0]?.value);
+    const channelId = body.channel?.id || data.channelId || '';
+    const messageTs = body.message?.ts || data.messageTs || '';
+    const profileName = data.profileName || 'this person';
+    const profileId = data.profileId || '';
+
+    if (profileId) {
+      recordProfileAction(profileId, 'pending');
+    }
+
+    if (channelId && messageTs) {
+      await updateMessage(client, channelId, messageTs, {
+        text: `Marked as pending: ${profileName}`,
+        blocks: buildStatusBlocks(`Marked as pending: ${profileName}`, undefined, data.profileUrl),
       });
     }
   });
@@ -414,6 +343,7 @@ function buildStatusBlocks(title: string, note?: string, profileUrl?: string): K
 
 function buildRetryBlocks(params: {
   title: string;
+  profileId?: string;
   profileUrl?: string;
   note?: string;
   personName?: string;
@@ -421,6 +351,7 @@ function buildRetryBlocks(params: {
   messageTs?: string;
 }): KnownBlock[] {
   const value = JSON.stringify({
+    profileId: params.profileId,
     profileUrl: params.profileUrl,
     note: params.note,
     personName: params.personName,
@@ -438,8 +369,8 @@ function buildRetryBlocks(params: {
       elements: [
         {
           type: 'button',
-          text: { type: 'plain_text', text: 'Retry with URL', emoji: false },
-          action_id: 'discovery_retry_connection_url',
+          text: { type: 'plain_text', text: 'Mark as pending', emoji: false },
+          action_id: 'discovery_mark_pending',
           value,
         },
         ...(params.profileUrl ? [{
@@ -453,6 +384,7 @@ function buildRetryBlocks(params: {
           text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'discovery_skip_person',
           value: JSON.stringify({
+            profileId: params.profileId,
             profileUrl: params.profileUrl,
             profileName: params.personName,
           }),
