@@ -37,8 +37,53 @@ async function updateQueueStatus(
 }
 
 export function registerPostHandlers(app: App): void {
-  // Comment on a discovered post
-  app.action<BlockAction<ButtonAction>>('discovery_comment', async ({ ack, body, client }) => {
+  // Send draft comment directly (no modal)
+  app.action<BlockAction<ButtonAction>>('discovery_comment_send', async ({ ack, body, client }) => {
+    await ack();
+
+    const data = parseActionValue(body.actions[0].value);
+    const channelId = body.channel?.id || '';
+    const messageTs = body.message?.ts || '';
+
+    if (!data.draftComment || !data.postId) {
+      if (channelId && messageTs) {
+        await client.chat.postMessage({
+          channel: channelId,
+          thread_ts: messageTs,
+          text: 'No draft comment to send. Use Edit to write one.',
+        });
+      }
+      return;
+    }
+
+    const result = await executeLinkedInAction('comment_on_post', {
+      postId: data.postId,
+      postUrl: data.postUrl,
+      comment: data.draftComment,
+    });
+
+    if (channelId && messageTs) {
+      await client.chat.postMessage({
+        channel: channelId,
+        thread_ts: messageTs,
+        text: result.success
+          ? `Comment posted: "${data.draftComment.slice(0, 100)}${data.draftComment.length > 100 ? '...' : ''}"`
+          : `Failed to post comment: ${result.error}`,
+      });
+    }
+
+    await updateQueueStatus(
+      client,
+      data.queueChannelId,
+      data.queueMessageTs,
+      result.success
+        ? 'Post action: comment posted'
+        : `Post action failed: ${result.error}`
+    );
+  });
+
+  // Edit comment before posting (opens modal)
+  app.action<BlockAction<ButtonAction>>('discovery_comment_edit', async ({ ack, body, client }) => {
     await ack();
 
     const data = parseActionValue(body.actions[0].value);
@@ -59,7 +104,7 @@ export function registerPostHandlers(app: App): void {
           queueChannelId: data.queueChannelId,
           queueMessageTs: data.queueMessageTs,
         }),
-        title: { type: 'plain_text', text: 'Post Comment' },
+        title: { type: 'plain_text', text: 'Edit Comment' },
         submit: { type: 'plain_text', text: 'Post Comment' },
         close: { type: 'plain_text', text: 'Cancel' },
         blocks: [

@@ -279,17 +279,14 @@ export async function surfacePost(
     {
       type: 'actions',
       elements: [
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: 'Comment', emoji: false },
-          style: 'primary',
-          action_id: 'discovery_comment',
-          value: JSON.stringify({
-            postId: post.provider_id || post.id,
-            postUrl: post.url,
-            draftComment,
-          }),
-        },
+        ...(post.url
+          ? [{
+              type: 'button' as const,
+              text: { type: 'plain_text' as const, text: 'View Post', emoji: false },
+              url: post.url,
+              action_id: 'discovery_view_post',
+            }]
+          : []),
         {
           type: 'button',
           text: { type: 'plain_text', text: 'Like', emoji: false },
@@ -299,13 +296,29 @@ export async function surfacePost(
             postUrl: post.url,
           }),
         },
-        ...(post.url
+        ...(draftComment
           ? [{
-              type: 'button',
-              text: { type: 'plain_text', text: 'View Post', emoji: false },
-              url: post.url,
-            } as const]
+              type: 'button' as const,
+              text: { type: 'plain_text' as const, text: 'Comment', emoji: false },
+              style: 'primary' as const,
+              action_id: 'discovery_comment_send',
+              value: JSON.stringify({
+                postId: post.provider_id || post.id,
+                postUrl: post.url,
+                draftComment,
+              }),
+            }]
           : []),
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Edit', emoji: false },
+          action_id: 'discovery_comment_edit',
+          value: JSON.stringify({
+            postId: post.provider_id || post.id,
+            postUrl: post.url,
+            draftComment,
+          }),
+        },
         {
           type: 'button',
           text: { type: 'plain_text', text: 'Skip', emoji: false },
