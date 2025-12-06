@@ -339,7 +339,7 @@ Return the follow-up email.`;
               required: ['subject', 'body'],
             },
           }],
-          tool_choice: { type: 'auto' },
+          tool_choice: { type: 'tool', name: 'draft_followup_email' },
           max_tokens: 1024,
         });
 
