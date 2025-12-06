@@ -17,8 +17,7 @@ import { shouldThrottle, recordActivity } from './activity-tracker.js';
 import { getContentGenerationConfig } from '../config/models.js';
 import { generateContent } from '../llm/content-generator.js';
 import { env } from '../config/env.js';
-import {
-  POST_SEARCH_TERMS_PROMPT,
+import { 
   POST_RELEVANCE_PROMPT,
   COMMENT_GENERATION_PROMPT,
   formatPostForRelevanceCheck,
@@ -28,6 +27,15 @@ import { postToPostThread } from '../slack/post-thread.js';
 
 // Track seen posts to avoid duplicates
 const seenPosts = new Set<string>();
+
+// Static search terms for post discovery (avoid LLM-generated variability)
+const STATIC_POST_SEARCH_TERMS = [
+  'commercial insurance',
+  'wholesale broker',
+  'insurtech',
+  'underwriting',
+  'E&S insurance',
+];
 
 export interface DiscoveredPost {
   id: string;
@@ -54,31 +62,6 @@ function getPostUrl(p: any): string | undefined {
 
   const id = p.provider_id || p.id;
   return buildPostUrlFromId(id);
-}
-
-/**
- * Generate search terms using AI
- */
-export async function generatePostSearchTerms(llm: ResponsesAPIClient): Promise<string[]> {
-  try {
-    const input = [
-      { type: 'message' as const, role: 'system' as const, content: POST_SEARCH_TERMS_PROMPT },
-      { type: 'message' as const, role: 'user' as const, content: 'Generate 3 diverse search terms.' },
-    ];
-
-    const response = await llm.createResponse(input, []);
-    const terms = (response.outputText || '')
-      .split('\n')
-      .map(t => t.trim())
-      .filter(t => t.length > 0)
-      .slice(0, 3);
-    
-    console.log(`[PostDiscovery] AI generated search terms: ${terms.join(', ')}`);
-    return terms.length > 0 ? terms : ['MGA insurance technology', 'wholesale insurance automation', 'E&S underwriting'];
-  } catch (error) {
-    console.error('[PostDiscovery] Failed to generate search terms:', error);
-    return ['MGA insurance technology', 'wholesale insurance automation', 'E&S underwriting'];
-  }
 }
 
 /**
@@ -151,8 +134,8 @@ export async function discoverPosts(
 
   console.log('[PostDiscovery] Searching for posts...');
 
-  // Generate search terms using AI
-  const searchTerms = await generatePostSearchTerms(llm);
+  // Use static search terms for consistency
+  const searchTerms = STATIC_POST_SEARCH_TERMS;
 
   let posts: DiscoveredPost[] = [];
 
