@@ -299,6 +299,13 @@ export async function surfacePost(
             postUrl: post.url,
           }),
         },
+        ...(post.url
+          ? [{
+              type: 'button',
+              text: { type: 'plain_text', text: 'View Post', emoji: false },
+              url: post.url,
+            } as const]
+          : []),
         {
           type: 'button',
           text: { type: 'plain_text', text: 'Skip', emoji: false },
