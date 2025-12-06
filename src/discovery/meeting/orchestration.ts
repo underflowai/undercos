@@ -20,8 +20,6 @@ import {
   MEETING_FOLLOWUP_PROMPT,
   MEETING_CLASSIFICATION_PROMPT,
 } from '../../prompts/index.js';
-import { getContentGenerationConfig } from '../../config/models.js';
-import { generateContent } from '../../llm/content-generator.js';
 import type { DiscoveryConfig } from '../config.js';
 import { getLatestAction } from '../../db/actions-log.js';
 
@@ -47,8 +45,6 @@ export async function classifyMeeting(
   llm: ResponsesAPIClient,
   meeting: EndedMeeting
 ): Promise<MeetingClassification> {
-  const contentConfig = getContentGenerationConfig();
-  
   try {
     const input = [
       { type: 'message' as const, role: 'system' as const, content: MEETING_CLASSIFICATION_PROMPT },
@@ -62,7 +58,7 @@ Duration: ${Math.round((meeting.endTime.getTime() - meeting.startTime.getTime())
     ];
 
     const response = await llm.createResponse(input, [], {
-      reasoningEffort: contentConfig.reasoningEffort,
+      reasoningEffort: 'high',
     });
 
     const text = response.outputText || '';
@@ -202,13 +198,15 @@ Their headline: N/A
 
 Generate a brief, personalized LinkedIn connection note (max 200 chars).`;
     const llm = new ResponsesAPIClient(env.OPENAI_API_KEY, { enableWebSearch: false });
-    const noteResult = await generateContent({
-      systemPrompt: LINKEDIN_MEETING_NOTE_PROMPT,
-      userPrompt: notePrompt,
-      maxTokens: 100,
-      effort: 'low',
-    }, llm);
-    const connectionNote = noteResult.text?.slice(0, 200) || `Great connecting at ${meetingContext.title}!`;
+    const noteResponse = await llm.createResponse(
+      [
+        { type: 'message', role: 'system', content: LINKEDIN_MEETING_NOTE_PROMPT },
+        { type: 'message', role: 'user', content: notePrompt },
+      ],
+      [],
+      { reasoningEffort: 'low', useWebSearch: false }
+    );
+    const connectionNote = noteResponse.outputText?.slice(0, 200) || `Great connecting at ${meetingContext.title}!`;
 
     const { executeLinkedInAction } = await import('../../tools/linkedin.js');
     const result = await executeLinkedInAction('send_connection_request', {
@@ -281,7 +279,7 @@ ${e.body}
       webContext = '';
     }
 
-    // Stage 2: Generate email with Claude
+    // Stage 2: Generate email with a structured tool call (forces JSON shape)
     console.log(`[DraftGen] Stage 2: Generating email...`);
     
     const userPrompt = `Meeting: ${meeting.title}
@@ -299,16 +297,47 @@ Next Steps: ${notes.nextSteps.map(n => `- ${n}`).join('\n') || 'None'}
 ${notes.body}
 ${historyContext}
 
-Return JSON with "subject" and "body" fields.`;
+Return the follow-up email.`;
 
-    const result = await generateContent({
-      systemPrompt: MEETING_FOLLOWUP_PROMPT,
-      userPrompt,
-      maxTokens: 2048,
-      effort: 'high',
-    }, llm);
+    const draftEmailTool = {
+      type: 'function' as const,
+      name: 'draft_followup_email',
+      description: 'Return a follow-up email for the meeting.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: { type: 'array', items: { type: 'string' } },
+          subject: { type: 'string' },
+          body: { type: 'string' },
+          context: { type: 'string' },
+        },
+        required: ['subject', 'body'],
+      },
+    };
+
+    const input = [
+      { type: 'message' as const, role: 'system' as const, content: MEETING_FOLLOWUP_PROMPT },
+      { type: 'message' as const, role: 'user' as const, content: userPrompt },
+    ];
+
+    const result = await llm.createResponse(input, [draftEmailTool], {
+      reasoningEffort: 'high',
+      useWebSearch: false,
+    });
     
-    const text = result.text || '';
+    // Prefer structured tool call
+    if (result.functionCalls.length > 0) {
+      const args = result.functionCalls[0].arguments as any;
+      const subject = args?.subject;
+      const body = args?.body;
+      const context = args?.context;
+      const to = Array.isArray(args?.to) && args.to.length > 0 ? args.to : toAddresses;
+      if (subject && body) {
+        return { to, subject, body, context };
+      }
+    }
+
+    const text = result.outputText || '';
     
     // Parse JSON response - handle both flat and nested formats
     let cleanText = text;
