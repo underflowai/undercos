@@ -29,7 +29,6 @@ interface UnipileProfile {
 }
 import type { DiscoveryConfig } from './config.js';
 import { shouldThrottle, recordActivity } from './activity-tracker.js';
-import { getContentGenerationConfig } from '../config/models.js';
 import { generateContent } from '../llm/content-generator.js';
 import { env } from '../config/env.js';
 import {
@@ -49,29 +48,13 @@ import {
   type RichProfile,
 } from '../prompts/index.js';
 
-// Higher reasoning LLM for content generation (connection notes)
-let contentLLM: ResponsesAPIClient | null = null;
-// LLM with web search for research
+// LLM with web search for research (uses OpenAI for web search capability)
 let researchLLM: ResponsesAPIClient | null = null;
-
-function getContentLLM(): ResponsesAPIClient {
-  if (!contentLLM) {
-    const config = getContentGenerationConfig();
-    contentLLM = new ResponsesAPIClient(env.OPENAI_API_KEY, {
-      configOverride: config,
-      enableWebSearch: false,
-    });
-    console.log(`[PeopleDiscovery] Content LLM: ${config.model} (reasoning: ${config.reasoningEffort})`);
-  }
-  return contentLLM;
-}
 
 function getResearchLLM(): ResponsesAPIClient {
   if (!researchLLM) {
-    const config = getContentGenerationConfig();
     researchLLM = new ResponsesAPIClient(env.OPENAI_API_KEY, {
-      configOverride: config,
-      enableWebSearch: true, // Enable web search for research
+      enableWebSearch: true,
     });
     console.log(`[PeopleDiscovery] Research LLM initialized with web search`);
   }
@@ -286,14 +269,14 @@ export async function isPersonRelevant(
  * Generate a brief on this person like a human chief of staff would write it
  */
 async function generatePersonBrief(
-  profile: RichProfile
+  profile: RichProfile,
+  llm: ResponsesAPIClient
 ): Promise<string> {
   try {
-    const contentLlm = getContentLLM();
     const formattedProfile = formatProfileForConnectionNote(profile);
     
-    const input = [
-      { type: 'message' as const, role: 'system' as const, content: `You're a chief of staff sending your boss a quick Slack message about someone worth connecting with.
+    const result = await generateContent({
+      systemPrompt: `You're a chief of staff sending your boss a quick Slack message about someone worth connecting with.
 
 Write 1-2 casual sentences about who this person is and why they're worth a connection. Write like you're texting a colleague, not writing a formal brief.
 
@@ -307,12 +290,13 @@ Bad examples (too formal/robotic):
 - "Recommendation: Connect with this prospect..."
 - "Key decision maker in the commercial insurance space."
 
-Keep it under 150 chars. Sound human.` },
-      { type: 'message' as const, role: 'user' as const, content: formattedProfile },
-    ];
+Keep it under 150 chars. Sound human.`,
+      userPrompt: formattedProfile,
+      maxTokens: 256,
+      effort: 'low',
+    }, llm);
     
-    const response = await contentLlm.createResponse(input, []);
-    return response.outputText?.slice(0, 200) || '';
+    return result.text?.slice(0, 200) || '';
   } catch (error) {
     console.error('[PeopleDiscovery] Failed to generate person brief:', error);
     return '';
@@ -604,7 +588,7 @@ export async function surfacePerson(
   }
 
   // Generate brief about this person
-  const brief = await generatePersonBrief(richProfile);
+  const brief = await generatePersonBrief(richProfile, llm);
   
   // Generate draft connection note (now includes research)
   let draftNote = '';
