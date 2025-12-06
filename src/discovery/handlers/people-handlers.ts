@@ -281,7 +281,7 @@ export function registerPeopleHandlers(app: App): void {
     const data = safeParseActionValue(body.actions?.[0]?.value);
     const channelId = body.channel?.id || data.channelId || '';
     const messageTs = body.message?.ts || data.messageTs || '';
-    const profileName = data.profileName || 'this person';
+    const profileName = data.personName || data.profileName || 'this person';
     const profileId = data.profileId || '';
 
     if (profileId) {
