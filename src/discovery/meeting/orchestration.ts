@@ -349,10 +349,28 @@ Return JSON with "subject" and "body" fields.`;
       }
     }
     
+    // Fallback: clean up raw LLM output (strip reasoning tags, function calls)
+    let fallbackBody = text
+      .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, '')
+      .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
+      .replace(/<[\w]+>[\s\S]*?<\/antml:[\w]+>/g, '')
+      .replace(/```[\s\S]*?```/g, '')
+      .trim();
+    
+    // If still looks like garbage, use generic message
+    if (fallbackBody.includes('<') || fallbackBody.length < 20) {
+      fallbackBody = `Hi ${primaryRecipient.name?.split(' ')[0] || 'there'},
+
+Great connecting today. Let me know if you have any questions about what we discussed.
+
+Best,
+Ola`;
+    }
+    
     return {
       to: toAddresses,
       subject: `Following up: ${meeting.title}`,
-      body: text,
+      body: fallbackBody,
     };
   } catch (error) {
     console.error('[DraftGen] Failed:', error);
