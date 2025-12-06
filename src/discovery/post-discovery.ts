@@ -139,15 +139,17 @@ export async function discoverPosts(
   let posts: DiscoveredPost[] = [];
 
   if (isUnipileConfigured()) {
+    // Search past_week by default for better coverage
     for (const keyword of searchTerms) {
       try {
         recordActivity('search');
         const results = await searchLinkedIn({
           category: 'posts',
           keywords: keyword,
-          limit: 5,
-          date_posted: 'past_day',
+          limit: 10, // More posts per search
+          date_posted: 'past_week',
         });
+        console.log(`[PostDiscovery] "${keyword}" returned ${results.items?.length || 0} posts`);
         posts.push(...results.items.map((p: any) => ({
           id: p.id,
           provider_id: p.provider_id,
@@ -161,32 +163,7 @@ export async function discoverPosts(
         console.error(`[PostDiscovery] Search failed for "${keyword}":`, error);
       }
     }
-
-    if (posts.length === 0) {
-      console.log('[PostDiscovery] No posts found for past_day; retrying past_week');
-      for (const keyword of searchTerms) {
-        try {
-          recordActivity('search');
-          const results = await searchLinkedIn({
-            category: 'posts',
-            keywords: keyword,
-            limit: 5,
-            date_posted: 'past_week',
-          });
-          posts.push(...results.items.map((p: any) => ({
-            id: p.id,
-            provider_id: p.provider_id,
-            url: p.url,
-            author: p.author || { name: 'Unknown' },
-            text: p.text || '',
-            likes_count: p.likes_count || 0,
-            comments_count: p.comments_count || 0,
-          })));
-        } catch (error) {
-          console.error(`[PostDiscovery] Fallback search failed for "${keyword}":`, error);
-        }
-      }
-    }
+    console.log(`[PostDiscovery] Total posts found: ${posts.length}`);
   } else {
     posts = getMockPosts();
   }

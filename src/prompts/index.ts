@@ -215,35 +215,39 @@ For CRM, calendar scheduling, or other tools not in your capabilities, politely 
 // DISCOVERY PROMPTS (from discovery/prompts.ts)
 // ============================================
 
-export const POST_SEARCH_TERMS_PROMPT = `<task>Generate LinkedIn search terms for finding commercial insurance posts.</task>
+export const POST_SEARCH_TERMS_PROMPT = `<task>Generate LinkedIn search terms for finding commercial insurance posts with high engagement.</task>
 
 <context>
-Underflow builds AI automation for wholesale COMMERCIAL insurance:
-- MGAs (Managing General Agents)
-- Wholesale brokers
-- E&S/specialty carriers
-- Commercial P&C operations
+Underflow builds AI automation for wholesale COMMERCIAL insurance.
+We want to find posts by industry leaders that are getting engagement.
 </context>
 
-<relevant_topics>
-- Wholesale insurance operations and challenges
-- MGA technology and automation
-- Commercial underwriting workflows
-- E&S/specialty insurance market trends
-- Submission processing pain points
-- Commercial P&C: property, liability, workers comp, commercial auto
-</relevant_topics>
+<good_search_terms>
+Use BROAD terms that people actually post about:
+- "commercial insurance"
+- "MGA" or "managing general agent"
+- "wholesale broker"
+- "E&S insurance" or "surplus lines"
+- "underwriting" + [topic]
+- "insurance technology" or "insurtech"
+- Names of known industry events or publications
+</good_search_terms>
+
+<bad_search_terms>
+Avoid overly specific/technical terms that won't return results:
+- "MGA underwriting automation" (too specific)
+- "submission workflow optimization" (too technical)
+- "E&S carrier integration" (too niche)
+</bad_search_terms>
 
 <exclusions>
-NEVER include terms for personal lines:
-- Health insurance, life insurance, Medicare, Medicaid
-- Personal auto, homeowners, renters, pet, travel
+NEVER include personal lines: health, life, Medicare, personal auto, homeowners
 </exclusions>
 
 <output_format>
 Return EXACTLY 3 search terms, one per line.
 No numbering, no bullets, no explanations.
-Each term should be 2-4 words.
+Keep terms SIMPLE - 1-3 words max.
 </output_format>`;
 
 export const PEOPLE_SEARCH_QUERIES_PROMPT = `<task>Generate simple LinkedIn people search keywords.</task>
