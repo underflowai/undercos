@@ -19,7 +19,7 @@ export async function ensureConnectionThread(
 
   const parent = await slackClient.chat.postMessage({
     channel: channelId,
-    text: `Actions for ${key}`,
+    text: `Suggested connections`,
   });
 
   if (!parent.ts) {
