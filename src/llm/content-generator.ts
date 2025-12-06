@@ -19,6 +19,28 @@ import { getClaudeClient, type ClaudeEffort } from './anthropic.js';
 import type { ResponsesAPIClient } from './responses.js';
 
 // =============================================================================
+// DATE CONTEXT
+// =============================================================================
+
+/**
+ * Generate current date/time context for LLM prompts
+ */
+export function getDateContext(): string {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  };
+  const formatted = now.toLocaleDateString('en-US', options);
+  return `Current date/time: ${formatted}`;
+}
+
+// =============================================================================
 // TYPES
 // =============================================================================
 
@@ -58,6 +80,10 @@ export async function generateContent(
   const config = getContentGenerationConfig();
   const provider = options.forceProvider || config.provider;
   
+  // Inject date context into system prompt
+  const dateContext = getDateContext();
+  const systemPromptWithDate = `${options.systemPrompt}\n\n${dateContext}`;
+  
   // Try Claude Opus 4.5 first if configured
   if (provider === 'anthropic') {
     const claude = getClaudeClient();
@@ -68,7 +94,7 @@ export async function generateContent(
         console.log(`[ContentGen] Using Claude Opus 4.5 (effort: ${effort})`);
         
         const response = await claude.createMessage(
-          options.systemPrompt,
+          systemPromptWithDate,
           options.userPrompt,
           {
             model: config.model,
@@ -96,7 +122,7 @@ export async function generateContent(
   console.log(`[ContentGen] Using OpenAI for content generation`);
   
   const input = [
-    { type: 'message' as const, role: 'system' as const, content: options.systemPrompt },
+    { type: 'message' as const, role: 'system' as const, content: systemPromptWithDate },
     { type: 'message' as const, role: 'user' as const, content: options.userPrompt },
   ];
   
@@ -187,9 +213,13 @@ export async function classifyContent<T>(
   openaiClient: ResponsesAPIClient,
   parseResponse: (text: string) => T
 ): Promise<T> {
+  // Inject date context
+  const dateContext = getDateContext();
+  const systemPromptWithDate = `${systemPrompt}\n\n${dateContext}`;
+  
   // Classification always uses OpenAI (better at structured output)
   const input = [
-    { type: 'message' as const, role: 'system' as const, content: systemPrompt },
+    { type: 'message' as const, role: 'system' as const, content: systemPromptWithDate },
     { type: 'message' as const, role: 'user' as const, content: contentToClassify },
   ];
   
