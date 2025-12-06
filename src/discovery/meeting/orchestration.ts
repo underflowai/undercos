@@ -349,16 +349,26 @@ Return JSON with "subject" and "body" fields.`;
       }
     }
     
-    // Fallback: clean up raw LLM output (strip reasoning tags, function calls)
+    // Fallback: clean up raw LLM output (strip reasoning tags, function calls, tool calls)
     let fallbackBody = text
+      // XML-style tags
       .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, '')
       .replace(/<thinking>[\s\S]*?<\/thinking>/g, '')
       .replace(/<[\w]+>[\s\S]*?<\/antml:[\w]+>/g, '')
+      .replace(/<[\w_]+>[\s\S]*?<\/[\w_]+>/g, '')
+      // JSON tool calls
+      .replace(/\{"tool_calls"[\s\S]*?\}\]\}/g, '')
+      .replace(/\{"tool"[\s\S]*?"params"[\s\S]*?\}/g, '')
+      // Code blocks
       .replace(/```[\s\S]*?```/g, '')
+      // Common LLM preambles
+      .replace(/I'll gather context[\s\S]*?email\./gi, '')
+      .replace(/Let me search[\s\S]*?\./gi, '')
+      .replace(/I'll search[\s\S]*?\./gi, '')
       .trim();
     
-    // If still looks like garbage, use generic message
-    if (fallbackBody.includes('<') || fallbackBody.length < 20) {
+    // If still looks like garbage (has JSON/XML artifacts or too short), use generic message
+    if (fallbackBody.includes('<') || fallbackBody.includes('{"') || fallbackBody.includes('tool_calls') || fallbackBody.length < 20) {
       fallbackBody = `Hi ${primaryRecipient.name?.split(' ')[0] || 'there'},
 
 Great connecting today. Let me know if you have any questions about what we discussed.
