@@ -365,22 +365,40 @@ Return the follow-up email.`;
       { type: 'message' as const, role: 'user' as const, content: userPrompt },
     ];
 
-    const result = await llm.createResponse(input, [draftEmailTool], {
+    let result = await llm.createResponse(input, [draftEmailTool], {
       reasoningEffort: 'high',
       useWebSearch: false,
     });
     
     // Prefer structured tool call
-    if (result.functionCalls.length > 0) {
-      const args = result.functionCalls[0].arguments as any;
-      const subject = args?.subject;
-      const body = args?.body;
-      const context = args?.context;
-      const to = Array.isArray(args?.to) && args.to.length > 0 ? args.to : toAddresses;
-      if (subject && body) {
-        return { to, subject, body, context };
+    const pickToolCall = (r: typeof result) => {
+      if (r.functionCalls.length > 0) {
+        const args = r.functionCalls[0].arguments as any;
+        const subject = args?.subject;
+        const body = args?.body;
+        const context = args?.context;
+        const to = Array.isArray(args?.to) && args.to.length > 0 ? args.to : toAddresses;
+        if (subject && body) {
+          return { to, subject, body, context };
+        }
       }
-    }
+      return null;
+    };
+    
+    const toolResult = pickToolCall(result);
+    if (toolResult) return toolResult;
+
+    // Retry once with explicit instruction to return only the tool call
+    const retryInput = [
+      { type: 'message' as const, role: 'system' as const, content: MEETING_FOLLOWUP_PROMPT },
+      { type: 'message' as const, role: 'user' as const, content: `${userPrompt}\n\nReturn ONLY the draft_followup_email tool call.` },
+    ];
+    result = await llm.createResponse(retryInput, [draftEmailTool], {
+      reasoningEffort: 'high',
+      useWebSearch: false,
+    });
+    const retryToolResult = pickToolCall(result);
+    if (retryToolResult) return retryToolResult;
 
     const text = result.outputText || '';
     
