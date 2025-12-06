@@ -43,6 +43,7 @@ import {
 import { discoverMeetingFollowUps, runHistoricalBackfill } from './meeting/index.js';
 
 import { postDailySummary } from '../slack/summary.js';
+import { resetConnectionThread } from '../slack/connection-thread.js';
 
 /**
  * Discovery Engine - the main orchestrator
@@ -182,6 +183,9 @@ export class DiscoveryEngine {
    */
   private async runPeopleDiscovery(): Promise<void> {
     const config = getDiscoveryConfig();
+    
+    // Start a fresh thread for this run
+    resetConnectionThread();
     
     try {
       await surfaceQueuedConnections(this.slackClient, config);
