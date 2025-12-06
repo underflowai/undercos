@@ -39,20 +39,21 @@ export interface DiscoveredPost {
   comments_count: number;
 }
 
+function buildPostUrlFromId(id?: string): string | undefined {
+  if (!id) return undefined;
+  const idStr = String(id);
+  if (idStr.includes('urn:li:activity:')) {
+    return `https://www.linkedin.com/feed/update/${idStr}`;
+  }
+  return `https://www.linkedin.com/feed/update/urn:li:activity:${idStr}`;
+}
+
 function getPostUrl(p: any): string | undefined {
   const direct = p.url || p.webUrl || p.link;
   if (direct) return direct;
 
   const id = p.provider_id || p.id;
-  if (!id) return undefined;
-
-  const idStr = String(id);
-  if (idStr.includes('urn:li:activity:')) {
-    // If already an activity URN, use as-is
-    return `https://www.linkedin.com/feed/update/${idStr}`;
-  }
-  // Otherwise, wrap in activity URN form
-  return `https://www.linkedin.com/feed/update/urn:li:activity:${idStr}`;
+  return buildPostUrlFromId(id);
 }
 
 /**
@@ -231,6 +232,7 @@ export async function surfacePost(
   config: DiscoveryConfig
 ): Promise<void> {
   let draftComment = '';
+  const postUrl = post.url || buildPostUrlFromId(post.provider_id || post.id);
 
   if (config.posts.autoGenerateComments) {
     draftComment = await generateComment(llm, post);
@@ -251,7 +253,7 @@ export async function surfacePost(
       elements: [
         {
           type: 'mrkdwn',
-          text: `${post.likes_count} likes · ${post.comments_count} comments${post.url ? ` · <${post.url}|View Post>` : ''}`,
+          text: `${post.likes_count} likes · ${post.comments_count} comments${postUrl ? ` · <${postUrl}|View Post>` : ''}`,
         },
       ],
     },
@@ -273,11 +275,11 @@ export async function surfacePost(
     {
       type: 'actions',
       elements: [
-        ...(post.url
+        ...(postUrl
           ? [{
               type: 'button' as const,
               text: { type: 'plain_text' as const, text: 'View Post', emoji: false },
-              url: post.url,
+              url: postUrl,
               action_id: 'discovery_view_post',
             }]
           : []),
@@ -287,7 +289,7 @@ export async function surfacePost(
           action_id: 'discovery_like',
           value: JSON.stringify({
             postId: post.provider_id || post.id,
-            postUrl: post.url,
+            postUrl: postUrl,
           }),
         },
         ...(draftComment
@@ -298,7 +300,7 @@ export async function surfacePost(
               action_id: 'discovery_comment_send',
               value: JSON.stringify({
                 postId: post.provider_id || post.id,
-                postUrl: post.url,
+                postUrl: postUrl,
                 draftComment,
               }),
             }]
@@ -309,7 +311,7 @@ export async function surfacePost(
           action_id: 'discovery_comment_edit',
           value: JSON.stringify({
             postId: post.provider_id || post.id,
-            postUrl: post.url,
+            postUrl: postUrl,
             draftComment,
           }),
         },
@@ -319,7 +321,7 @@ export async function surfacePost(
           action_id: 'discovery_skip',
           value: JSON.stringify({
             postId: post.provider_id || post.id,
-            postUrl: post.url,
+            postUrl: postUrl,
           }),
         },
       ],
