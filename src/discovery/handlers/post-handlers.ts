@@ -36,6 +36,31 @@ async function updateQueueStatus(
   });
 }
 
+function buildPostStatusBlocks(title: string, postUrl?: string): any[] {
+  const blocks: any[] = [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: title },
+    },
+  ];
+
+  if (postUrl) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'View Post', emoji: false },
+          url: postUrl,
+          action_id: 'discovery_view_post',
+        },
+      ],
+    });
+  }
+
+  return blocks;
+}
+
 export function registerPostHandlers(app: App): void {
   // Send draft comment directly (no modal)
   app.action<BlockAction<ButtonAction>>('discovery_comment_send', async ({ ack, body, client }) => {
@@ -69,6 +94,12 @@ export function registerPostHandlers(app: App): void {
         text: result.success
           ? `Comment posted: "${data.draftComment.slice(0, 100)}${data.draftComment.length > 100 ? '...' : ''}"`
           : `Failed to post comment: ${result.error}`,
+        blocks: buildPostStatusBlocks(
+          result.success
+            ? `Comment posted: "${data.draftComment.slice(0, 100)}${data.draftComment.length > 100 ? '...' : ''}"`
+            : `Failed to post comment: ${result.error}`,
+          data.postUrl
+        ),
       });
     }
 
@@ -159,6 +190,12 @@ export function registerPostHandlers(app: App): void {
         text: result.success
           ? `Comment posted: "${comment.slice(0, 100)}${comment.length > 100 ? '...' : ''}"`
           : `Failed to post comment: ${result.error}`,
+        blocks: buildPostStatusBlocks(
+          result.success
+            ? `Comment posted: "${comment.slice(0, 100)}${comment.length > 100 ? '...' : ''}"`
+            : `Failed to post comment: ${result.error}`,
+          metadata.postUrl
+        ),
       });
     }
 
@@ -190,6 +227,7 @@ export function registerPostHandlers(app: App): void {
         channel: channelId,
         thread_ts: messageTs,
         text: result.success ? 'Post liked' : `Failed to like: ${result.error}`,
+        blocks: buildPostStatusBlocks(result.success ? 'Post liked' : `Failed to like: ${result.error}`, data.postUrl),
       });
     }
 
@@ -214,12 +252,7 @@ export function registerPostHandlers(app: App): void {
         channel: channelId,
         ts: messageTs,
         text: 'Post skipped',
-        blocks: [
-          {
-            type: 'section',
-            text: { type: 'mrkdwn', text: '_Post skipped_' },
-          },
-        ],
+        blocks: buildPostStatusBlocks('_Post skipped_', data.postUrl),
       });
     }
 
