@@ -16,6 +16,7 @@ import {
   markMeetingSurfaced,
   hasMeetingBeenProcessed,
 } from '../../db/sales-leads.js';
+import { addSurfacedProfile } from '../../db/profiles.js';
 import {
   MEETING_FOLLOWUP_PROMPT,
   MEETING_CLASSIFICATION_PROMPT,
@@ -719,6 +720,17 @@ export async function surfaceMeetingFollowUp(
         } catch (err) {
           console.error('[Surfacing] Profile check failed', err);
         }
+      }
+
+      // Record profile in database to prevent re-surfacing
+      if (providerId && displayName) {
+        addSurfacedProfile({
+          id: providerId,
+          provider_id: providerId,
+          name: displayName,
+          profile_url: profileUrl,
+          source: 'meeting',
+        });
       }
 
       const connectionBlocks = buildMeetingConnectionBlocks(meeting, attendee, {

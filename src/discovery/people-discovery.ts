@@ -631,6 +631,18 @@ export async function surfacePerson(
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const scheduledFor = getDateKey(tomorrow);
+    // Record profile now even though surfacing is queued (prevents re-discovery)
+    addSurfacedProfile({
+      id: profile.id,
+      provider_id: profile.provider_id,
+      name: profile.name,
+      headline: profile.headline,
+      company: profile.company,
+      profile_url: profile.profile_url,
+      connection_note: draftNote || undefined,
+      source: 'ad_hoc',
+    });
+
     enqueueSuggestion({
       source: 'ad_hoc',
       scheduledFor,
@@ -649,6 +661,18 @@ export async function surfacePerson(
     console.log(`[PeopleDiscovery] Surface cap reached (${todayCount}/${ADHOC_SURFACE_LIMIT}); queued ${profile.name} for ${scheduledFor}`);
     return;
   }
+
+  // Record profile in database to prevent re-surfacing
+  addSurfacedProfile({
+    id: profile.id,
+    provider_id: profile.provider_id,
+    name: profile.name,
+    headline: profile.headline,
+    company: profile.company,
+    profile_url: profile.profile_url,
+    connection_note: draftNote || undefined,
+    source: 'ad_hoc',
+  });
 
   incrementSurfaceCount('ad_hoc');
   await postConnectionMessage(slackClient, config.slack.channelId, { text: profile.name, blocks });
