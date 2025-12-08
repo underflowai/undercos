@@ -25,9 +25,6 @@ import {
 } from '../prompts/index.js';
 import { postToPostThread } from '../slack/post-thread.js';
 
-// Track seen posts to avoid duplicates
-const seenPosts = new Set<string>();
-
 // Static search terms for post discovery - targeting commercial insurance ecosystem
 // Carriers, wholesalers, MGAs, and adjacent players
 const STATIC_POST_SEARCH_TERMS = [
@@ -215,7 +212,7 @@ export async function discoverPosts(
   // Fallback: if none pass engagement, take top by engagement anyway
   if (candidates.length === 0 && posts.length > 0) {
     candidates = posts
-      .filter(p => !seenPosts.has(p.provider_id || p.id))
+      .filter(p => !isPostSeen(p.provider_id || p.id))
       .sort((a, b) => (b.likes_count + b.comments_count) - (a.likes_count + a.comments_count))
       .slice(0, config.posts.maxPostsPerRun);
     console.log('[PostDiscovery] Using fallback by engagement since none met threshold');
