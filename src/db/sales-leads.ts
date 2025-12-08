@@ -1,20 +1,11 @@
 import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
-
-// Database setup
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'sales-leads.db');
-
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+import { getDbPath } from './data-dir.js';
 
 let db: Database.Database | null = null;
 
 function getDb(): Database.Database {
   if (!db) {
-    db = new Database(DB_PATH);
+    db = new Database(getDbPath('sales-leads.db'));
     db.pragma('journal_mode = WAL');
     initializeSchema(db);
   }

@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import { getDbPath } from './data-dir.js';
 
 type ActionStatus = 'pending' | 'succeeded' | 'failed';
 
@@ -16,14 +15,7 @@ export interface LoggedAction {
   updated_at: string;
 }
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DATA_DIR, 'actions-log.db');
-
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-const db = new Database(DB_PATH);
+const db = new Database(getDbPath('actions-log.db'));
 db.pragma('journal_mode = WAL');
 
 db.exec(`

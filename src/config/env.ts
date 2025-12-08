@@ -39,6 +39,10 @@ const envSchema = z.object({
   // Auto-detects from system if not set, defaults to America/Los_Angeles
   TIMEZONE: z.string().default(Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles'),
 
+  // Data persistence
+  // Set to a volume mount path on Railway (e.g., /data) for persistence across deploys
+  DATA_DIR: z.string().default('./data'),
+
   // Safety / Config
   DRY_RUN: z.string().optional().default('false'),
   DRY_RUN_EMAIL: z.string().optional().default('false'),
