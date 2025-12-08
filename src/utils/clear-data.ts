@@ -3,7 +3,8 @@ import path from 'path';
 import { getDataDir } from '../db/data-dir.js';
 
 export function clearDataDir(): void {
-  if (!process.env.CLEAR_DATA_ON_START) return;
+  const shouldClear = process.env.CLEAR_DATA_ON_START === 'true';
+  if (!shouldClear) return;
 
   const dataDir = getDataDir();
   if (!fs.existsSync(dataDir)) return;
