@@ -510,7 +510,7 @@ export async function discoverPeople(
  * Surface a person in Slack - formatted like a message from a human chief of staff
  */
 
-const ADHOC_SURFACE_LIMIT = 50; // daily cap for ad-hoc suggestions; meeting-derived are uncapped
+const ADHOC_SURFACE_LIMIT = 100; // daily cap for ad-hoc suggestions; meeting-derived are uncapped
 
 function getDateKey(date: Date = new Date()): string {
   return date.toISOString().split('T')[0];

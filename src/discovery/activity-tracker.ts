@@ -32,33 +32,32 @@ interface ActivityLimits {
   recommended?: number; // Safer daily limit
 }
 
-// LinkedIn best practice limits
-// Weekly limits are spread across 5 working days to avoid running out mid-week
+// LinkedIn best practice limits - doubled for aggressive outreach
 const ACTIVITY_LIMITS: Record<ActivityType, ActivityLimits> = {
   invitation: {
-    daily: 80,
-    weekly: 200,
-    recommended: 50, // Aggressive but safe
+    daily: 150,
+    weekly: 400,
+    recommended: 100,
   },
   profile_view: {
-    daily: 100,
-    recommended: 60, // Bumped up
+    daily: 200,
+    recommended: 120,
   },
   comment: {
-    daily: 30,
-    recommended: 25, // Bumped from 10
+    daily: 60,
+    recommended: 50,
   },
   like: {
-    daily: 100,
-    recommended: 50, // Bumped from 30
+    daily: 200,
+    recommended: 100,
   },
   message: {
-    daily: 100,
-    recommended: 30, // Bumped from 20
+    daily: 150,
+    recommended: 60,
   },
   search: {
-    daily: 500, // Searches are not really limited by LinkedIn
-    recommended: 200, // Track for observability, but don't throttle
+    daily: 500,
+    recommended: 400,
   },
 };
 
