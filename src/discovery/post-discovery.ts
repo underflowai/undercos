@@ -10,6 +10,7 @@ import {
   getActiveLinkedinAccountId,
   searchLinkedIn,
   getLocationIds,
+  getPost,
 } from '../tools/unipile-sdk.js';
 import { isPostSeen, addSeenPost, getSeenPostsCount } from '../db/posts.js';
 import type { DiscoveryConfig } from './config.js';
@@ -73,6 +74,7 @@ const STATIC_POST_SEARCH_TERMS = [
 export interface DiscoveredPost {
   id: string;
   provider_id?: string;
+  social_id?: string; // urn:li:ugcPost:XXX - needed for comment/like APIs
   url?: string;
   author: { name: string; headline?: string };
   text: string;
@@ -216,6 +218,17 @@ export async function discoverPosts(
   for (const post of candidates.slice(0, 10)) {
     const isRelevant = await isPostRelevant(llm, post);
     if (isRelevant) {
+      // Fetch full post to get social_id (needed for comment/like APIs)
+      try {
+        const fullPost = await getPost(String(post.id)) as any;
+        if (fullPost?.social_id) {
+          post.social_id = fullPost.social_id;
+          console.log(`[PostDiscovery] Got social_id for post: ${post.social_id}`);
+        }
+      } catch (err) {
+        console.warn(`[PostDiscovery] Could not fetch social_id for post ${post.id}`);
+      }
+      
       relevantPosts.push(post);
       if (relevantPosts.length >= config.posts.maxPostsPerRun) break;
     }
@@ -297,7 +310,7 @@ export async function surfacePost(
           text: { type: 'plain_text', text: 'Like', emoji: false },
           action_id: 'discovery_like',
           value: JSON.stringify({
-            postId: post.id, // Use Unipile's internal ID for API calls
+            postId: post.social_id || post.id, // Use social_id (ugcPost URN) for API calls
             postUrl: postUrl,
           }),
         },
@@ -308,7 +321,7 @@ export async function surfacePost(
               style: 'primary' as const,
               action_id: 'discovery_comment_send',
               value: JSON.stringify({
-                postId: post.id, // Use Unipile's internal ID for API calls
+                postId: post.social_id || post.id, // Use social_id (ugcPost URN) for API calls
                 postUrl: postUrl,
                 draftComment,
               }),
@@ -319,7 +332,7 @@ export async function surfacePost(
           text: { type: 'plain_text', text: 'Edit', emoji: false },
           action_id: 'discovery_comment_edit',
           value: JSON.stringify({
-            postId: post.id, // Use Unipile's internal ID for API calls
+            postId: post.social_id || post.id, // Use social_id (ugcPost URN) for API calls
             postUrl: postUrl,
             draftComment,
           }),
@@ -329,7 +342,7 @@ export async function surfacePost(
           text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'discovery_skip',
           value: JSON.stringify({
-            postId: post.id, // Use Unipile's internal ID for API calls
+            postId: post.social_id || post.id, // Use social_id (ugcPost URN) for API calls
             postUrl: postUrl,
           }),
         },

@@ -224,16 +224,16 @@ export async function getPost(postId: string) {
 }
 
 /**
- * Normalize post ID to the URN format Unipile expects
- * Unipile needs the full LinkedIn URN: urn:li:activity:XXXXX
+ * Normalize post ID - Unipile needs the social_id (urn:li:ugcPost:XXX) format
+ * If we receive a URN, use it directly. Otherwise pass through as-is.
  */
 function normalizePostId(postId: string): string {
-  // If it's already a URN, return as-is
-  if (postId.includes('urn:li:activity:')) {
+  // If it's already a URN (ugcPost or activity), use as-is
+  if (postId.startsWith('urn:li:')) {
     return postId;
   }
-  // Otherwise, convert numeric ID to URN format
-  return `urn:li:activity:${postId}`;
+  // Otherwise return as-is - the caller should provide the social_id
+  return postId;
 }
 
 /**
