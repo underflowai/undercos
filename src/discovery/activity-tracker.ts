@@ -38,23 +38,23 @@ const ACTIVITY_LIMITS: Record<ActivityType, ActivityLimits> = {
   invitation: {
     daily: 80,
     weekly: 200,
-    recommended: 35, // 200/week ÷ 5 days = 40, but stay conservative at 35
+    recommended: 50, // Aggressive but safe
   },
   profile_view: {
     daily: 100,
-    recommended: 40, // Stay well under to be safe
+    recommended: 60, // Bumped up
   },
   comment: {
     daily: 30,
-    recommended: 10, // Very conservative for comments
+    recommended: 25, // Bumped from 10
   },
   like: {
     daily: 100,
-    recommended: 30, // Don't like too many posts
+    recommended: 50, // Bumped from 30
   },
   message: {
     daily: 100,
-    recommended: 20, // Messages should be thoughtful, not mass
+    recommended: 30, // Bumped from 20
   },
   search: {
     daily: 500, // Searches are not really limited by LinkedIn

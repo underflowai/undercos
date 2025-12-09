@@ -51,7 +51,7 @@ export const DEFAULT_DISCOVERY_CONFIG: DiscoveryConfig = {
   posts: {
     enabled: false,
     // AI generates search terms dynamically - no hardcoded keywords
-    maxPostsPerRun: 10,
+    maxPostsPerRun: 15, // Bumped from 10
     autoGenerateComments: true,
   },
 
@@ -64,7 +64,7 @@ export const DEFAULT_DISCOVERY_CONFIG: DiscoveryConfig = {
       'United Kingdom',
     ],
     excludeConnected: true,
-    maxPeoplePerRun: 5, // Exactly 5 people * 6 runs/day = 30/day
+    maxPeoplePerRun: 10, // Bumped from 5
     autoGenerateNotes: true,
   },
 
