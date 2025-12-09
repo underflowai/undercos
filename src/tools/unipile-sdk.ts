@@ -224,6 +224,18 @@ export async function getPost(postId: string) {
 }
 
 /**
+ * Normalize post ID to the format Unipile expects
+ * Unipile may need just the numeric ID or the full URN - we try both
+ */
+function normalizePostId(postId: string): string {
+  // If it's already a URN, extract just the numeric part
+  if (postId.includes('urn:li:activity:')) {
+    return postId.replace('urn:li:activity:', '');
+  }
+  return postId;
+}
+
+/**
  * Comment on a post
  */
 export async function commentOnPost(postId: string, text: string) {
@@ -233,11 +245,13 @@ export async function commentOnPost(postId: string, text: string) {
     return { success: false, error: 'Not configured' };
   }
   
+  const normalizedId = normalizePostId(postId);
+  
   try {
-    console.log('[Unipile] Posting comment...', { postId, textLength: text.length });
+    console.log('[Unipile] Posting comment...', { postId, normalizedId, textLength: text.length });
     const response = await sdk.users.sendPostComment({
       account_id: accountId,
-      post_id: postId,
+      post_id: normalizedId,
       text,
     });
     console.log('[Unipile] Comment response:', JSON.stringify(response, null, 2));

@@ -184,6 +184,11 @@ export async function discoverPosts(
           date_posted: 'past_week',
         });
         console.log(`[PostDiscovery] "${keyword}" returned ${results.items?.length || 0} posts`);
+        // Log the first post's ID fields to debug format
+        if (results.items?.length > 0) {
+          const sample = results.items[0];
+          console.log(`[PostDiscovery] Sample post IDs: id=${sample.id}, provider_id=${sample.provider_id}`);
+        }
         posts.push(...results.items.map((p: any) => ({
           id: p.id,
           provider_id: p.provider_id,
@@ -292,7 +297,7 @@ export async function surfacePost(
           text: { type: 'plain_text', text: 'Like', emoji: false },
           action_id: 'discovery_like',
           value: JSON.stringify({
-            postId: post.provider_id || post.id,
+            postId: post.id, // Use Unipile's internal ID for API calls
             postUrl: postUrl,
           }),
         },
@@ -303,7 +308,7 @@ export async function surfacePost(
               style: 'primary' as const,
               action_id: 'discovery_comment_send',
               value: JSON.stringify({
-                postId: post.provider_id || post.id,
+                postId: post.id, // Use Unipile's internal ID for API calls
                 postUrl: postUrl,
                 draftComment,
               }),
@@ -314,7 +319,7 @@ export async function surfacePost(
           text: { type: 'plain_text', text: 'Edit', emoji: false },
           action_id: 'discovery_comment_edit',
           value: JSON.stringify({
-            postId: post.provider_id || post.id,
+            postId: post.id, // Use Unipile's internal ID for API calls
             postUrl: postUrl,
             draftComment,
           }),
@@ -324,7 +329,7 @@ export async function surfacePost(
           text: { type: 'plain_text', text: 'Skip', emoji: false },
           action_id: 'discovery_skip',
           value: JSON.stringify({
-            postId: post.provider_id || post.id,
+            postId: post.id, // Use Unipile's internal ID for API calls
             postUrl: postUrl,
           }),
         },
