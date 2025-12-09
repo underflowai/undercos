@@ -11,8 +11,7 @@ export const discoveryConfigSchema = z.object({
   posts: z.object({
     enabled: z.boolean().default(true),
     // AI generates search terms dynamically - no hardcoded keywords
-    minEngagement: z.number().default(10).describe('Minimum likes + comments'),
-    maxPostsPerRun: z.number().default(3).describe('Max posts to surface per run'),
+    maxPostsPerRun: z.number().default(10).describe('Max posts to surface per run'),
     autoGenerateComments: z.boolean().default(true).describe('Auto-draft comments'),
     // Note: Location filtering not effective for posts via Unipile
   }),
@@ -52,8 +51,7 @@ export const DEFAULT_DISCOVERY_CONFIG: DiscoveryConfig = {
   posts: {
     enabled: false,
     // AI generates search terms dynamically - no hardcoded keywords
-    minEngagement: 10,
-    maxPostsPerRun: 3, // Conservative - quality over quantity
+    maxPostsPerRun: 10,
     autoGenerateComments: true,
   },
 

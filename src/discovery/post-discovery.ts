@@ -202,21 +202,9 @@ export async function discoverPosts(
     posts = getMockPosts();
   }
 
-  // Filter: dedupe, engagement threshold
-  let candidates = posts
-    .filter(p => !isPostSeen(p.provider_id || p.id))
-    .filter(p => (p.likes_count + p.comments_count) >= config.posts.minEngagement);
-
-  console.log(`[PostDiscovery] ${candidates.length} posts passed basic filters`);
-
-  // Fallback: if none pass engagement, take top by engagement anyway
-  if (candidates.length === 0 && posts.length > 0) {
-    candidates = posts
-      .filter(p => !isPostSeen(p.provider_id || p.id))
-      .sort((a, b) => (b.likes_count + b.comments_count) - (a.likes_count + a.comments_count))
-      .slice(0, config.posts.maxPostsPerRun);
-    console.log('[PostDiscovery] Using fallback by engagement since none met threshold');
-  }
+  // Filter: dedupe only (no engagement threshold)
+  const candidates = posts.filter(p => !isPostSeen(p.provider_id || p.id));
+  console.log(`[PostDiscovery] ${candidates.length} posts after deduplication`);
 
   // AI relevance scoring
   const relevantPosts: DiscoveredPost[] = [];
