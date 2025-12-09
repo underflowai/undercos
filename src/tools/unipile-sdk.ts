@@ -234,17 +234,38 @@ export async function commentOnPost(postId: string, text: string) {
   }
   
   try {
+    console.log('[Unipile] Posting comment...', { postId, textLength: text.length });
     const response = await sdk.users.sendPostComment({
       account_id: accountId,
       post_id: postId,
       text,
     });
+    console.log('[Unipile] Comment response:', JSON.stringify(response, null, 2));
+    
+    // Check for error in response body
+    const resp = response as Record<string, unknown>;
+    if (resp.error || resp.status === 'error' || resp.success === false) {
+      const errorMsg = (resp.error as string) || (resp.message as string) || 'Unknown Unipile error';
+      return { success: false, error: errorMsg };
+    }
+    
     return { success: true, data: response };
-  } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    };
+  } catch (error: unknown) {
+    // Extract error details from Unipile SDK error
+    const err = error as { message?: string; response?: { data?: unknown }; body?: unknown };
+    console.error('[Unipile] Comment error:', {
+      message: err.message,
+      responseData: err.response?.data,
+      body: err.body,
+    });
+    
+    let errorMsg = err.message || 'Unknown error';
+    if (err.response?.data) {
+      const data = err.response.data as Record<string, unknown>;
+      errorMsg = (data.error as string) || (data.message as string) || errorMsg;
+    }
+    
+    return { success: false, error: errorMsg };
   }
 }
 
