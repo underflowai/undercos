@@ -77,6 +77,31 @@ const STATIC_PEOPLE_SEARCH_TERMS = [
   'insurance technology director',
   'digital transformation insurance',
   
+  // Tech leadership in insurance
+  'CTO insurance company',
+  'chief technology officer MGA',
+  'VP engineering insurance',
+  'head of engineering insurtech',
+  'insurance software architect',
+  'VP product insurance',
+  'head of product insurtech',
+  'product manager insurance',
+  'insurance automation director',
+  'AI insurance executive',
+  
+  // IT & systems
+  'insurance IT director',
+  'insurance systems director',
+  'policy admin systems',
+  'insurance platform director',
+  'core systems insurance',
+  
+  // Data & analytics
+  'insurance data science',
+  'chief data officer insurance',
+  'insurance analytics director',
+  'actuarial technology',
+  
   // Specialty carriers
   'E&S carrier executive',
   'specialty insurance VP',
