@@ -35,11 +35,9 @@ import {
   isProfileSeen,
   addSurfacedProfile,
   getSeenProfilesCount,
-  formatQueryFeedbackForAI,
 } from '../db/index.js';
 import { getLatestAction } from '../db/actions-log.js';
 import {
-  PEOPLE_SEARCH_QUERIES_PROMPT,
   PERSON_RELEVANCE_PROMPT,
   CONNECTION_NOTE_PROMPT,
   PROFILE_RESEARCH_PROMPT,
@@ -47,6 +45,48 @@ import {
   formatProfileForConnectionNote,
   type RichProfile,
 } from '../prompts/index.js';
+
+// Static search terms for people discovery - targeting commercial insurance decision makers
+// Keep queries short (3-5 words) for LinkedIn search effectiveness
+const STATIC_PEOPLE_SEARCH_TERMS = [
+  // MGA leadership
+  'MGA CEO insurance',
+  'MGA president underwriting',
+  'managing general agent VP',
+  'MGA chief underwriting officer',
+  'program administrator director',
+  
+  // Wholesale brokers
+  'wholesale broker VP',
+  'wholesale insurance director',
+  'surplus lines broker',
+  'E&S broker executive',
+  'wholesale operations director',
+  
+  // Underwriting leadership
+  'VP underwriting commercial',
+  'chief underwriting officer',
+  'underwriting director specialty',
+  'head of underwriting MGA',
+  'commercial underwriting VP',
+  
+  // Operations & technology
+  'insurance operations director',
+  'VP operations MGA',
+  'insurtech founder',
+  'insurance technology director',
+  'digital transformation insurance',
+  
+  // Specialty carriers
+  'E&S carrier executive',
+  'specialty insurance VP',
+  'excess surplus director',
+  'commercial P&C executive',
+  'property casualty VP',
+];
+
+// Track which search terms we've used this session to rotate through them
+let searchTermIndex = 0;
 
 // LLM with web search for research (uses OpenAI for web search capability)
 let researchLLM: ResponsesAPIClient | null = null;
@@ -179,65 +219,19 @@ export interface DiscoveredProfile {
 }
 
 /**
- * Generate people search queries using AI
+ * Get next batch of people search queries from static list
+ * Rotates through the list to get variety across runs
  */
-export async function generatePeopleSearchQueries(llm: ResponsesAPIClient): Promise<string[]> {
-  try {
-    // Get feedback on past query performance
-    const queryFeedback = formatQueryFeedbackForAI();
-    const hasFeedback = !queryFeedback.includes('No query performance data') && 
-                        !queryFeedback.includes('Not enough data');
-    
-    // Build prompt with learning context
-    let userPrompt = 'Generate 2 simple search queries.';
-    if (hasFeedback) {
-      userPrompt = `Generate 2 simple search queries.
-
-LEARNING FROM PAST RESULTS:
-${queryFeedback}
-
-Use this feedback: generate variations of queries that worked well, and avoid patterns from queries that didn't work.`;
-      console.log('[PeopleDiscovery] Using performance feedback to guide query generation');
-    }
-    
-    const input = [
-      { type: 'message' as const, role: 'system' as const, content: PEOPLE_SEARCH_QUERIES_PROMPT },
-      { type: 'message' as const, role: 'user' as const, content: userPrompt },
-    ];
-
-    const response = await llm.createResponse(input, []);
-    let queries = (response.outputText || '')
-      .split('\n')
-      .map(q => q.trim())
-      .filter(q => q.length > 0)
-      .slice(0, 2);
-    
-    // Safety: truncate queries that are too long (LinkedIn rejects large payloads)
-    // Also strip boolean operators if AI included them
-    queries = queries.map(q => {
-      // Remove boolean operators
-      let cleaned = q
-        .replace(/\bAND\b/gi, ' ')
-        .replace(/\bOR\b/gi, ' ')
-        .replace(/\bNOT\b/gi, ' ')
-        .replace(/[()\"]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      // Limit to first 50 chars
-      if (cleaned.length > 50) {
-        cleaned = cleaned.slice(0, 50).trim();
-        console.log(`[PeopleDiscovery] Truncated long query to: "${cleaned}"`);
-      }
-      return cleaned;
-    });
-    
-    console.log(`[PeopleDiscovery] AI generated search queries: ${queries.join(', ')}`);
-    return queries.length > 0 ? queries : ['VP underwriting MGA', 'wholesale insurance operations director'];
-  } catch (error) {
-    console.error('[PeopleDiscovery] Failed to generate queries:', error);
-    return ['VP underwriting MGA', 'wholesale insurance operations director'];
+export function getPeopleSearchQueries(count: number = 3): string[] {
+  const queries: string[] = [];
+  
+  for (let i = 0; i < count; i++) {
+    queries.push(STATIC_PEOPLE_SEARCH_TERMS[searchTermIndex]);
+    searchTermIndex = (searchTermIndex + 1) % STATIC_PEOPLE_SEARCH_TERMS.length;
   }
+  
+  console.log(`[PeopleDiscovery] Using search queries: ${queries.join(', ')}`);
+  return queries;
 }
 
 /**
@@ -403,7 +397,7 @@ export async function discoverPeople(
   const seenInThisRun = new Set<string>();
 
   for (let round = 0; round < maxSearchRounds && relevantProfiles.length < targetCount; round++) {
-    const searchQueries = await generatePeopleSearchQueries(llm);
+    const searchQueries = getPeopleSearchQueries(3);
     
     let profiles: DiscoveredProfile[] = [];
 
