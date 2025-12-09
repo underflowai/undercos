@@ -224,15 +224,16 @@ export async function getPost(postId: string) {
 }
 
 /**
- * Normalize post ID to the format Unipile expects
- * Unipile may need just the numeric ID or the full URN - we try both
+ * Normalize post ID to the URN format Unipile expects
+ * Unipile needs the full LinkedIn URN: urn:li:activity:XXXXX
  */
 function normalizePostId(postId: string): string {
-  // If it's already a URN, extract just the numeric part
+  // If it's already a URN, return as-is
   if (postId.includes('urn:li:activity:')) {
-    return postId.replace('urn:li:activity:', '');
+    return postId;
   }
-  return postId;
+  // Otherwise, convert numeric ID to URN format
+  return `urn:li:activity:${postId}`;
 }
 
 /**
@@ -296,17 +297,25 @@ export async function reactToPost(
     return { success: false, error: 'Not configured' };
   }
   
+  const normalizedId = normalizePostId(postId);
+  
   try {
+    console.log('[Unipile] Reacting to post...', { postId, normalizedId, reactionType });
     const response = await sdk.users.sendPostReaction({
       account_id: accountId,
-      post_id: postId,
+      post_id: normalizedId,
       reaction_type: reactionType,
     });
     return { success: true, data: response };
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as { message?: string; response?: { data?: unknown }; body?: unknown };
+    console.error('[Unipile] Reaction error:', {
+      message: err.message,
+      body: err.body,
+    });
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: err.message || 'Unknown error' 
     };
   }
 }
