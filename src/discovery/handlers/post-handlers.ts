@@ -87,19 +87,16 @@ export function registerPostHandlers(app: App): void {
       comment: data.draftComment,
     });
 
+    // Update original message in-place (not a new reply)
     if (channelId && messageTs) {
-      await client.chat.postMessage({
+      const statusText = result.success
+        ? `✅ Comment posted: "${data.draftComment.slice(0, 100)}${data.draftComment.length > 100 ? '...' : ''}"`
+        : `❌ Failed to post comment: ${result.error}`;
+      await client.chat.update({
         channel: channelId,
-        thread_ts: messageTs,
-        text: result.success
-          ? `Comment posted: "${data.draftComment.slice(0, 100)}${data.draftComment.length > 100 ? '...' : ''}"`
-          : `Failed to post comment: ${result.error}`,
-        blocks: buildPostStatusBlocks(
-          result.success
-            ? `Comment posted: "${data.draftComment.slice(0, 100)}${data.draftComment.length > 100 ? '...' : ''}"`
-            : `Failed to post comment: ${result.error}`,
-          data.postUrl
-        ),
+        ts: messageTs,
+        text: statusText,
+        blocks: buildPostStatusBlocks(statusText, data.postUrl),
       });
     }
 
@@ -182,20 +179,16 @@ export function registerPostHandlers(app: App): void {
       comment,
     });
 
-    // Update the original message with result
+    // Update the original message in-place (not a new reply)
     if (metadata.channelId && metadata.messageTs) {
-      await client.chat.postMessage({
+      const statusText = result.success
+        ? `✅ Comment posted: "${comment.slice(0, 100)}${comment.length > 100 ? '...' : ''}"`
+        : `❌ Failed to post comment: ${result.error}`;
+      await client.chat.update({
         channel: metadata.channelId,
-        thread_ts: metadata.messageTs,
-        text: result.success
-          ? `Comment posted: "${comment.slice(0, 100)}${comment.length > 100 ? '...' : ''}"`
-          : `Failed to post comment: ${result.error}`,
-        blocks: buildPostStatusBlocks(
-          result.success
-            ? `Comment posted: "${comment.slice(0, 100)}${comment.length > 100 ? '...' : ''}"`
-            : `Failed to post comment: ${result.error}`,
-          metadata.postUrl
-        ),
+        ts: metadata.messageTs,
+        text: statusText,
+        blocks: buildPostStatusBlocks(statusText, metadata.postUrl),
       });
     }
 
@@ -222,12 +215,14 @@ export function registerPostHandlers(app: App): void {
       postUrl: data.postUrl,
     });
 
+    // Update original message in-place (not a new reply)
     if (channelId && messageTs) {
-      await client.chat.postMessage({
+      const statusText = result.success ? '👍 Post liked' : `❌ Failed to like: ${result.error}`;
+      await client.chat.update({
         channel: channelId,
-        thread_ts: messageTs,
-        text: result.success ? 'Post liked' : `Failed to like: ${result.error}`,
-        blocks: buildPostStatusBlocks(result.success ? 'Post liked' : `Failed to like: ${result.error}`, data.postUrl),
+        ts: messageTs,
+        text: statusText,
+        blocks: buildPostStatusBlocks(statusText, data.postUrl),
       });
     }
 
@@ -252,7 +247,7 @@ export function registerPostHandlers(app: App): void {
         channel: channelId,
         ts: messageTs,
         text: 'Post skipped',
-        blocks: buildPostStatusBlocks('_Post skipped_', data.postUrl),
+        blocks: buildPostStatusBlocks('⏭️ _Post skipped_', data.postUrl),
       });
     }
 
