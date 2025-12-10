@@ -101,6 +101,7 @@ function getPostUrl(p: any): string | undefined {
 
 // Keywords that indicate a hiring/job post - skip these
 const HIRING_POST_KEYWORDS = [
+  // Direct hiring
   'we\'re hiring',
   'we are hiring',
   'now hiring',
@@ -124,6 +125,38 @@ const HIRING_POST_KEYWORDS = [
   'dm me if interested',
   'dm for details',
   'send your resume',
+  
+  // Recruiter/staffing agency patterns
+  'is seeking a',
+  'seeking a dedicated',
+  'seeking a professional',
+  'client is seeking',
+  'client is looking',
+  'we\'re looking for a dedicated',
+  'we\'re looking for a professional',
+  'what you\'ll do',
+  'what you will do',
+  'responsibilities:',
+  'requirements:',
+  'qualifications:',
+  'competitive salary',
+  'supportive work environment',
+  'contact us for more information',
+  'contact me for more information',
+  'for more information',
+  'reach out if interested',
+  'could be a great fit',
+  'this could be a great fit',
+  
+  // Job title patterns (these are almost always job posts)
+  'account manager to support',
+  'account representative!',
+  'adding a commercial lines',
+  'adding an account',
+  
+  // Recruiter email patterns
+  'recruiter@',
+  '@gmail.com for more',
 ];
 
 /**
