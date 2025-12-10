@@ -18,7 +18,7 @@ import { shouldThrottle, recordActivity } from './activity-tracker.js';
 import { getContentGenerationConfig } from '../config/models.js';
 import { generateContent } from '../llm/content-generator.js';
 import { env } from '../config/env.js';
-import { 
+import {
   POST_RELEVANCE_PROMPT,
   COMMENT_GENERATION_PROMPT,
   formatPostForRelevanceCheck,
@@ -97,6 +97,41 @@ function getPostUrl(p: any): string | undefined {
 
   const id = p.provider_id || p.id;
   return buildPostUrlFromId(id);
+}
+
+// Keywords that indicate a hiring/job post - skip these
+const HIRING_POST_KEYWORDS = [
+  'we\'re hiring',
+  'we are hiring',
+  'now hiring',
+  'job opening',
+  'job opportunity',
+  'open position',
+  'open role',
+  'join our team',
+  'join the team',
+  'looking to hire',
+  'seeking candidates',
+  'apply now',
+  'apply today',
+  'apply here',
+  '#hiring',
+  '#opentowork',
+  '#jobopening',
+  'career opportunity',
+  'career opportunities',
+  'immediate opening',
+  'dm me if interested',
+  'dm for details',
+  'send your resume',
+];
+
+/**
+ * Check if a post is a hiring/job post (skip these)
+ */
+function isHiringPost(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  return HIRING_POST_KEYWORDS.some(keyword => lowerText.includes(keyword));
 }
 
 /**
@@ -210,12 +245,22 @@ export async function discoverPosts(
   }
 
   // Filter: dedupe only (no engagement threshold)
-  const candidates = posts.filter(p => !isPostSeen(p.provider_id || p.id));
-  console.log(`[PostDiscovery] ${candidates.length} posts after deduplication`);
+  const deduped = posts.filter(p => !isPostSeen(p.provider_id || p.id));
+  console.log(`[PostDiscovery] ${deduped.length} posts after deduplication`);
+
+  // Filter out hiring posts
+  const candidates = deduped.filter(p => {
+    if (isHiringPost(p.text)) {
+      console.log(`[PostDiscovery] Skipping hiring post: "${p.text.slice(0, 50)}..."`);
+      return false;
+    }
+    return true;
+  });
+  console.log(`[PostDiscovery] ${candidates.length} posts after filtering hiring posts`);
 
   // AI relevance scoring
   const relevantPosts: DiscoveredPost[] = [];
-  for (const post of candidates.slice(0, 10)) {
+  for (const post of candidates.slice(0, 20)) { // Check more candidates since some get filtered
     const isRelevant = await isPostRelevant(llm, post);
     if (isRelevant) {
       // Fetch full post to get social_id (needed for comment/like APIs)
@@ -295,8 +340,8 @@ export async function surfacePost(
   const blocks: KnownBlock[] = [
     ...baseBlocks,
     {
-      type: 'actions',
-      elements: [
+    type: 'actions',
+    elements: [
         ...(postUrl
           ? [{
               type: 'button' as const,
@@ -305,10 +350,10 @@ export async function surfacePost(
               action_id: 'discovery_view_post',
             }]
           : []),
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: 'Like', emoji: false },
-          action_id: 'discovery_like',
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: 'Like', emoji: false },
+        action_id: 'discovery_like',
           value: JSON.stringify({
             postId: post.social_id || post.id, // Use social_id (ugcPost URN) for API calls
             postUrl: postUrl,
@@ -336,11 +381,11 @@ export async function surfacePost(
             postUrl: postUrl,
             draftComment,
           }),
-        },
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: 'Skip', emoji: false },
-          action_id: 'discovery_skip',
+      },
+      {
+        type: 'button',
+        text: { type: 'plain_text', text: 'Skip', emoji: false },
+        action_id: 'discovery_skip',
           value: JSON.stringify({
             postId: post.social_id || post.id, // Use social_id (ugcPost URN) for API calls
             postUrl: postUrl,
