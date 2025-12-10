@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ToolResult } from './types.js';
 import { 
-  isUnipileConfigured,
+  isUnipileConfigured, 
   getActiveLinkedinAccountId,
   // SDK functions
   searchLinkedIn,
@@ -377,10 +377,10 @@ export const linkedinHandlers = {
         
         const post = await getPost(postId);
         if (post) {
-          return {
-            success: true,
+        return {
+          success: true,
             data: formatPost(post as UnipilePost),
-          };
+        };
         }
       } catch (error) {
         console.error('[SDK] Get post failed:', error);
@@ -452,10 +452,10 @@ export const linkedinHandlers = {
         
         const profile = await getProfile(args.profileUrl);
         if (profile) {
-          return {
-            success: true,
+        return {
+          success: true,
             data: formatProfile(profile as unknown as UnipileProfile),
-          };
+        };
         }
       } catch (error) {
         console.error('[SDK] Get profile failed:', error);
@@ -727,7 +727,7 @@ export async function executeLinkedInAction(
     case 'comment_on_post': {
       const comment = editedDraft || (args.comment as string);
       const postId = args.postId as string;
-
+      
       if (!postId) {
         return { success: false, error: 'Missing post ID for comment' };
       }
@@ -735,7 +735,7 @@ export async function executeLinkedInAction(
       if (isUnipileConfigured()) {
         try {
           const response = await sdkCommentOnPost(postId, comment);
-
+          
           if (response.success) {
             recordActivity('comment');
             return { success: true, message: ' Comment posted via Unipile!' };
@@ -753,7 +753,7 @@ export async function executeLinkedInAction(
           };
         }
       }
-
+      
       recordActivity('comment');
       console.log(`[Mock] Posted comment on ${postId}: ${comment}`);
       return { success: true, message: '[Mock] Comment posted!' };
@@ -808,7 +808,7 @@ export async function executeLinkedInAction(
       const existing = getLatestAction('send_connection_request', 'linkedin_profile', providerId);
       if (existing?.status === 'succeeded') {
         return { success: true, message: 'Connection already sent' };
-      }
+                }
       
       const actionId = logAction({
         actionType: 'send_connection_request',
@@ -880,7 +880,7 @@ export async function executeLinkedInAction(
         note,
       }, note);
     }
-
+    
     case 'send_dm': {
       const profileId = args.profileId as string;
       const message = editedDraft || (args.message as string);

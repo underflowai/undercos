@@ -155,7 +155,7 @@ async function handleNewRelation(event: WebhookEvent, channelId: string): Promis
     removeSentInvitation(event.user_provider_id);
   }
   
-    
+  
   await slackClient.chat.postMessage({
     channel: channelId,
     text: `${event.user_full_name} accepted your connection request`,
@@ -226,7 +226,7 @@ async function handleMessageReceived(event: WebhookEvent, channelId: string): Pr
   // It's an incoming message from someone else
   console.log(`[Webhook] New message from ${event.sender.attendee_name}: "${event.message.slice(0, 50)}..."`);
   
-    const profileUrl = event.sender.attendee_profile_url || '';
+  const profileUrl = event.sender.attendee_profile_url || '';
   
   // Truncate long messages
   const messagePreview = event.message.length > 200 
@@ -354,7 +354,7 @@ async function checkForConnectionAcceptance(event: WebhookEvent, channelId: stri
     tracked.notified = true;
     
     const profileUrl = event.sender.attendee_profile_url || '';
-        
+    
     if (slackClient) {
       await slackClient.chat.postMessage({
         channel: channelId,

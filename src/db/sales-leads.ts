@@ -6,7 +6,7 @@ let db: Database.Database | null = null;
 function getDb(): Database.Database {
   if (!db) {
     db = new Database(getDbPath('sales-leads.db'));
-    db.pragma('journal_mode = WAL');
+db.pragma('journal_mode = WAL');
     initializeSchema(db);
   }
   return db;
@@ -14,20 +14,20 @@ function getDb(): Database.Database {
 
 function initializeSchema(database: Database.Database): void {
   database.exec(`
-    CREATE TABLE IF NOT EXISTS surfaced_meetings (
-      meeting_id TEXT PRIMARY KEY,
-      recipient_email TEXT NOT NULL,
-      recipient_name TEXT,
-      meeting_title TEXT,
-      surfaced_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  CREATE TABLE IF NOT EXISTS surfaced_meetings (
+    meeting_id TEXT PRIMARY KEY,
+    recipient_email TEXT NOT NULL,
+    recipient_name TEXT,
+    meeting_title TEXT,
+    surfaced_at TEXT DEFAULT CURRENT_TIMESTAMP,
       status TEXT DEFAULT 'surfaced',
-      draft_subject TEXT,
-      draft_body TEXT,
-      updated_at TEXT
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_surfaced_meetings_status ON surfaced_meetings(status);
-  `);
+    draft_subject TEXT,
+    draft_body TEXT,
+    updated_at TEXT
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_surfaced_meetings_status ON surfaced_meetings(status);
+`);
 }
 
 // =============================================================================
@@ -65,13 +65,13 @@ class SurfacedMeetingRepository {
   }
 
   markMeetingSurfaced(params: {
-    meetingId: string;
-    recipientEmail: string;
-    recipientName?: string;
-    meetingTitle?: string;
-    draftSubject?: string;
-    draftBody?: string;
-  }): void {
+  meetingId: string;
+  recipientEmail: string;
+  recipientName?: string;
+  meetingTitle?: string;
+  draftSubject?: string;
+  draftBody?: string;
+}): void {
     this.db.prepare(`
       INSERT OR REPLACE INTO surfaced_meetings (
         meeting_id, recipient_email, recipient_name, meeting_title,

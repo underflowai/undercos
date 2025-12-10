@@ -115,13 +115,13 @@ export class DiscoveryEngine {
     console.log('[Discovery] Engine started');
 
     // Run initial discovery after short delays (slash command driven, no active hours check)
-    setTimeout(() => {
-      if (config.posts.enabled) this.runPostDiscovery();
-    }, 5000);
+      setTimeout(() => {
+        if (config.posts.enabled) this.runPostDiscovery();
+      }, 5000);
 
-    setTimeout(() => {
-      if (config.people.enabled) this.runPeopleDiscovery();
-    }, 15000);
+      setTimeout(() => {
+        if (config.people.enabled) this.runPeopleDiscovery();
+      }, 15000);
 
     // Email follow-ups run regardless of active hours
     // Run historical backfill on startup to catch any missed meetings
