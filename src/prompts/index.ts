@@ -303,12 +303,14 @@ Say YES if the post discusses:
 - Commercial underwriting, submission processing, binding
 - Insurance automation, insurtech (commercial focus)
 - Carrier operations, carrier appetite, carrier portals
-- Commercial insurance workforce/talent challenges
-- Hiring at MGAs/wholesalers/commercial carriers (potential customers)
+- Industry trends, market insights, thought leadership
 </relevant_criteria>
 
 <not_relevant_criteria>
-Say NO if the post discusses:
+Say NO if the post is:
+- JOB POSTING or HIRING announcement (we're hiring, now hiring, open role, job opportunity, join our team, apply now, seeking candidates)
+- RECRUITER post (our client is seeking, staffing, recruiting for, partnering with agency)
+- JOB LISTING with responsibilities/qualifications/salary/benefits
 - Personal lines: health, life, personal auto, homeowners, renters
 - Medicare, Medicaid, ACA, health benefits, open enrollment
 - Annuities, retirement planning, wealth management
@@ -320,6 +322,7 @@ Say NO if the post discusses:
 
 <decision_rule>
 Be STRICT. When in doubt, say NO.
+ALWAYS say NO to job postings, hiring announcements, and recruiter posts - even if they're for insurance roles.
 If personal lines are mentioned at all, say NO.
 </decision_rule>
 

@@ -99,128 +99,6 @@ function getPostUrl(p: any): string | undefined {
   return buildPostUrlFromId(id);
 }
 
-// Keywords that indicate a hiring/job post - skip these
-const HIRING_POST_KEYWORDS = [
-  // Direct hiring
-  'we\'re hiring',
-  'we are hiring',
-  'now hiring',
-  'job opening',
-  'job opportunity',
-  'open position',
-  'open role',
-  'join our team',
-  'join the team',
-  'looking to hire',
-  'seeking candidates',
-  'apply now',
-  'apply today',
-  'apply here',
-  '#hiring',
-  '#opentowork',
-  '#jobopening',
-  '#job',
-  '#jobs',
-  '#vacancy',
-  '#jobsearch',
-  '#nowhiring',
-  'career opportunity',
-  'career opportunities',
-  'immediate opening',
-  'dm me if interested',
-  'dm for details',
-  'send your resume',
-  'send resume',
-  'submit your resume',
-  
-  // Recruiter/staffing agency patterns
-  'is seeking a',
-  'seeking a dedicated',
-  'seeking a professional',
-  'client is seeking',
-  'client is looking',
-  'our client',
-  'my client',
-  'we\'re looking for a dedicated',
-  'we\'re looking for a professional',
-  'partnering with',
-  'teamed up with',
-  'staffing',
-  'recruiting for',
-  'recruitment',
-  'talent acquisition',
-  'what you\'ll do',
-  'what you will do',
-  'responsibilities:',
-  'requirements:',
-  'qualifications:',
-  'key responsibilities',
-  'job description',
-  'role overview',
-  'position overview',
-  'competitive salary',
-  'competitive compensation',
-  'supportive work environment',
-  'contact us for more information',
-  'contact me for more information',
-  'for more information',
-  'reach out if interested',
-  'could be a great fit',
-  'this could be a great fit',
-  'great fit for',
-  'perfect fit for',
-  'ideal candidate',
-  
-  // Job title patterns (almost always job posts)
-  'account manager to support',
-  'account representative!',
-  'adding a commercial lines',
-  'adding an account',
-  'looking for a commercial',
-  'looking for an underwriter',
-  'looking for a producer',
-  'looking for an account',
-  'seeking an underwriter',
-  'seeking a producer',
-  'seeking an account',
-  'hiring an underwriter',
-  'hiring a producer',
-  'hiring an account',
-  
-  // Role/position signals
-  'full-time',
-  'full time',
-  'part-time',
-  'part time',
-  'remote position',
-  'hybrid position',
-  'onsite position',
-  'on-site position',
-  'work from home',
-  'salary range',
-  'compensation:',
-  'benefits:',
-  'pto',
-  '401k',
-  '401(k)',
-  'health insurance',
-  'dental',
-  
-  // Recruiter email patterns
-  'recruiter@',
-  '@gmail.com for more',
-  'email me at',
-  'email your resume',
-];
-
-/**
- * Check if a post is a hiring/job post (skip these)
- */
-function isHiringPost(text: string): boolean {
-  const lowerText = text.toLowerCase();
-  return HIRING_POST_KEYWORDS.some(keyword => lowerText.includes(keyword));
-}
-
 /**
  * Check if a post is relevant using AI
  */
@@ -332,22 +210,12 @@ export async function discoverPosts(
   }
 
   // Filter: dedupe only (no engagement threshold)
-  const deduped = posts.filter(p => !isPostSeen(p.provider_id || p.id));
-  console.log(`[PostDiscovery] ${deduped.length} posts after deduplication`);
+  const candidates = posts.filter(p => !isPostSeen(p.provider_id || p.id));
+  console.log(`[PostDiscovery] ${candidates.length} posts after deduplication`);
 
-  // Filter out hiring posts
-  const candidates = deduped.filter(p => {
-    if (isHiringPost(p.text)) {
-      console.log(`[PostDiscovery] Skipping hiring post: "${p.text.slice(0, 50)}..."`);
-      return false;
-    }
-    return true;
-  });
-  console.log(`[PostDiscovery] ${candidates.length} posts after filtering hiring posts`);
-
-  // AI relevance scoring
+  // AI relevance scoring (LLM filters out job posts, personal lines, etc.)
   const relevantPosts: DiscoveredPost[] = [];
-  for (const post of candidates.slice(0, 20)) { // Check more candidates since some get filtered
+  for (const post of candidates.slice(0, 25)) { // Check up to 25 candidates
     const isRelevant = await isPostRelevant(llm, post);
     if (isRelevant) {
       // Fetch full post to get social_id (needed for comment/like APIs)
